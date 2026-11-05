@@ -1,0 +1,23 @@
+# Entornos y secretos locales
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+# Archivos generados
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+work/
+*.log
+*.tmp
+# Resultados personales: se crean al ejecutar
+data/runs/
+# Fuente original: se obtiene aparte; se incluye el piloto preparado
+data/raw/
+.DS_Store
+Thumbs.db

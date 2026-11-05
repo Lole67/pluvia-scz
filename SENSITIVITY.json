@@ -1,0 +1,36 @@
+{
+  "date": "2026-11-03",
+  "scenario": {
+    "rain_mm": 50,
+    "duration_h": 2,
+    "saturation": 0.5,
+    "drainage_mmh": 5
+  },
+  "mobility_sensitivity": [
+    {
+      "mobility_m2_s": 5,
+      "report_max_mm": 443.74723833571113,
+      "relative_l1_to_base": 0.6734257157077477,
+      "domain_max_mm": 1036.1364768107017
+    },
+    {
+      "mobility_m2_s": 10,
+      "report_max_mm": 544.9455186742813,
+      "relative_l1_to_base": 0.2893111524023766,
+      "domain_max_mm": 1437.0908417521944
+    },
+    {
+      "mobility_m2_s": 20,
+      "report_max_mm": 615.2874027510421,
+      "relative_l1_to_base": 0.0,
+      "domain_max_mm": 1838.7227412541567
+    }
+  ],
+  "boundary_test": {
+    "description": "Mismo reporte 4x4 km; margen de 500 m contra 1000 m; ambos bordes cerrados. No demuestra independencia de un dominio mayor.",
+    "relative_l1_change": 0.18314207988356263,
+    "report_max_mm_500m_margin": 645.0764763253925
+  },
+  "mass_residual_m3": 6.28642737865448e-09,
+  "interpretation": "Máximos sensibles a conductancia sintética y borde. No usar como profundidad real. No entrenar aún etiquetas definitivas ni afirmar validación hidráulica."
+}

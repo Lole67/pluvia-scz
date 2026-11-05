@@ -1,0 +1,60 @@
+{
+  "version": "pilot-fabdem-v1-090104e063e4",
+  "cell_m": 250,
+  "shape": [
+    24,
+    24
+  ],
+  "crs": "EPSG:32720",
+  "domain_area_km2": 36,
+  "report_area_km2": 16,
+  "origin_west_north": [
+    478000,
+    8037250
+  ],
+  "boundary": "closed",
+  "source_sha256": "090104e063e4c4be897a836c7c835152a6c8fb3ce33acf1d9adf2d371603af2d",
+  "source_metadata": {
+    "crs": "EPSG:4326",
+    "bounds": [
+      -64.00013888888888,
+      -17.999861111111112,
+      -63.000138888888884,
+      -16.999861111111112
+    ],
+    "pixel_size": [
+      0.0002777777777777778,
+      0.0002777777777777778
+    ],
+    "nodata": -9999.0
+  },
+  "elevation_min_m": 399.6503439466191,
+  "elevation_max_m": 421.2284825853593,
+  "sources": {
+    "elevation": {
+      "classification": "pública/modelada",
+      "product": "FABDEM V1-2",
+      "resolution": "1 segundo de arco (~30 m)",
+      "aggregation": "promedio a 250 m",
+      "url": "https://data.bris.ac.uk/datasets/s5hqmjcdj8yo2ibzi9b4ew3sn/",
+      "doi": "10.5523/bris.s5hqmjcdj8yo2ibzi9b4ew3sn",
+      "license": "CC BY-NC-SA 4.0"
+    },
+    "slope": {
+      "classification": "derivada",
+      "method": "gradiente del DEM agregado"
+    },
+    "infiltration": {
+      "classification": "sintética provisional",
+      "value_mmh": 5,
+      "coverage": "uniforme; cobertura/SoilGrids pendientes"
+    }
+  },
+  "warnings": [
+    "Zona piloto parcial, no toda Santa Cruz.",
+    "Cobertura y SoilGrids no incorporados; infiltración uniforme sintética de 5 mm/h.",
+    "Borde exterior cerrado; buffer de 1 km no validado como cuenca ni aislamiento suficiente.",
+    "No modela desbordamiento del Piraí ni red municipal de drenaje.",
+    "Resultados exploratorios sin validación observacional."
+  ]
+}
