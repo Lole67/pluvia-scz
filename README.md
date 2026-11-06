@@ -1,6 +1,10 @@
-# Flood Prediction System — Sprint 1
+# Pluvia SCZ — Sprint 1
 
 Prototipo académico para explorar acumulación pluvial en una zona piloto de Santa Cruz de la Sierra. Configura lluvia, ejecuta un simulador simplificado, consulta mapas y recupera resultados guardados. **Experimental: no es un pronóstico ni una herramienta de alertas.**
+
+Repositorio: https://github.com/Lole67/pluvia-scz
+
+Proyecto académico anteriormente identificado como Flood Prediction System. La comparación formal de escenarios pertenece a los próximos hitos.
 
 ## Documentación
 

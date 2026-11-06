@@ -1,6 +1,7 @@
 # Sprint 1 — Documentación funcional y técnica
 
-**Flood Prediction System · Santa Cruz de la Sierra**  
+**Pluvia SCZ · Santa Cruz de la Sierra**
+
 Versión documental: 1.0 · Corte: 5 de noviembre de 2026 · Entrega prevista: 6 de noviembre.
 
 ## Contenido

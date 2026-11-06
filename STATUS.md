@@ -57,3 +57,7 @@ Panel de escenario agrupado, historial desplegable, leyenda sobre el mapa y resu
 
 ## Documentación de entrega — 2026-11-05
 Manual integral docs/SPRINT_1.md, README actualizado, guía GitHub y atribución DATA_SOURCES.md. Se distingue prototipo funcional de aceptación manual y validación física. Preparación Git local sin remoto ni publicación; identidad de autor y destino por confirmar. Se excluyen entorno, resultados personales y tesela original.
+
+
+## Preparación de publicación — 2026-11-06
+Nombre del repositorio: Pluvia SCZ, https://github.com/Lole67/pluvia-scz . Se integra el README inicial remoto conservando ambos historiales. Commit local inicial 2c25951. La publicación y sincronización se comprueban después del push; esta entrada no certifica por sí sola que haya finalizado.
