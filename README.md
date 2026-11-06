@@ -27,7 +27,7 @@ py -3.12 -m venv .venv
 Abrir http://127.0.0.1:5050 y mantener la terminal abierta. Detener con Ctrl+C.
 Entorno comprobado: Python 3.12.14 en Windows. Se incluyen los datos preparados; no es necesario descargar FABDEM para esta demostración. Instalar dependencias requiere internet; el cálculo y la vista local funcionan sin red.
 
-En el equipo original, el entorno está en la carpeta padre: usar `..\.venv\Scripts\python.exe run.py` o `INICIAR.cmd`. El iniciador actual requiere esa disposición; para un clon con entorno interno usar los comandos anteriores.
+En el equipo original, el entorno está en la carpeta padre: usar `..\.venv\Scripts\python.exe run.py` o `INICIAR.cmd`. Ambos iniciadores buscan primero `.venv` dentro del proyecto y después en la carpeta padre. Si no encuentran ninguno muestran un mensaje de instalación.
 
 ## Qué permite
 
@@ -35,11 +35,11 @@ En el equipo original, el entorno está en la carpeta padre: usar `..\.venv\Scri
 - Mostrar terreno, índice relativo y agua máxima simulada sobre 576 celdas de 250 m.
 - Consultar calles cuando haya conexión o usar una cuadrícula local sin internet.
 - Ajustar transparencia y líneas, seleccionar celdas y consultar ayuda contextual.
-- Recuperar ejecuciones guardadas en JSON.
+- Recuperar ejecuciones guardadas en JSON. Los archivos dañados se informan y se omiten de la lista sin impedir consultar los válidos; no se eliminan.
 
 ## Estado y pruebas
 
-Al 5/11/2026: recorrido principal implementado; 11 casos Python aprobados y pruebas JavaScript de presentación aprobadas. La superposición de datos sobre calles fue confirmada por el usuario. La revisión visual final y la comprobación en otro equipo siguen pendientes. El manual contiene la lista de aceptación; no se afirma validación frente a inundaciones reales.
+Al 6/11/2026: recorrido principal implementado y ajustes de cierre técnico completados; 16 casos Python aprobados y pruebas JavaScript de presentación aprobadas. La superposición de datos sobre calles fue confirmada por el usuario. La revisión visual final y la instalación de dependencias en otro equipo siguen pendientes; no se presentan como aprobadas. Ver [acta de cierre técnico](docs/CIERRE_SPRINT_1.md). El manual contiene la lista de aceptación; no se afirma validación frente a inundaciones reales.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -q

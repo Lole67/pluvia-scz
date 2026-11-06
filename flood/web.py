@@ -2,6 +2,7 @@
 from dataclasses import asdict
 from datetime import datetime, timezone
 import json
+import math
 from pathlib import Path
 import time
 from uuid import uuid4
@@ -13,6 +14,42 @@ from .simulator import Scenario, simulate, ENGINE_VERSION, INDEX_VERSION
 from .territory import load_territory
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def read_saved_run(file):
+    """Read a saved result without repairing or deleting the original file."""
+    data = json.loads(file.read_text(encoding='utf-8'))
+    if not isinstance(data, dict):
+        raise ValueError('La ejecución debe ser un objeto JSON.')
+    run_id = data['run_id']
+    if (not isinstance(run_id, str) or len(run_id) != 32
+            or any(c not in '0123456789abcdef' for c in run_id)
+            or not file.name.endswith('_' + run_id + '.json')):
+        raise ValueError('Identificador inconsistente.')
+    datetime.fromisoformat(data['created_at'])
+    Scenario.from_dict(data['scenario'])
+    if isinstance(data['elapsed_s'], bool) or not math.isfinite(data['elapsed_s']) or data['elapsed_s'] < 0:
+        raise ValueError('Tiempo de ejecución inválido.')
+    for key in ('territory_version', 'engine_version', 'index_version'):
+        if not isinstance(data[key], str) or not data[key]:
+            raise ValueError('Versión ausente.')
+    shape = None
+    for key in ('maximum_mm', 'final_mm', 'index'):
+        matrix = np.asarray(data[key], dtype=float)
+        if matrix.ndim != 2 or matrix.size == 0 or not np.isfinite(matrix).all():
+            raise ValueError('Matriz inválida.')
+        if shape is not None and shape != matrix.shape:
+            raise ValueError('Matrices incompatibles.')
+        shape = matrix.shape
+    numbers = [data['tolerance_m3'], data['summary']['max_mm'], data['summary']['mean_index']]
+    numbers += [data['summary']['category_area_km2'][k] for k in ('baja', 'media', 'alta', 'muy_alta')]
+    numbers += [data['ledger'][-1][k] for k in ('rain_m3', 'infiltration_m3', 'drainage_m3', 'stored_m3', 'residual_m3')]
+    if any(isinstance(n, bool) or not math.isfinite(n) for n in numbers):
+        raise ValueError('Indicadores inválidos.')
+    return data
+
+
+SAVED_RUN_ERRORS = (OSError, UnicodeError, ValueError, KeyError, TypeError, IndexError, OverflowError)
 
 
 def create_app(data_dir=None, runs_dir=None):
@@ -35,9 +72,17 @@ def create_app(data_dir=None, runs_dir=None):
     @app.get('/api/runs')
     def history():
         items = []
+        warnings = []
         for file in sorted(output.glob('*.json'), reverse=True):
-            data = json.loads(file.read_text(encoding='utf-8'))
+            try:
+                data = read_saved_run(file)
+            except SAVED_RUN_ERRORS:
+                warnings.append(file.name)
+                app.logger.warning('Ejecución omitida del historial: %s', file.name)
+                continue
             items.append({k: data[k] for k in ('run_id', 'created_at', 'scenario', 'elapsed_s')})
+        if request.args.get('include_warnings') == '1':
+            return jsonify(runs=items[:100], warnings=warnings)
         return jsonify(items[:100])
 
     @app.get('/api/runs/<run_id>')
@@ -47,7 +92,11 @@ def create_app(data_dir=None, runs_dir=None):
         files = list(output.glob('*_' + run_id + '.json'))
         if not files:
             return jsonify(error='Ejecución no encontrada.'), 404
-        return app.response_class(files[0].read_text(encoding='utf-8'), mimetype='application/json')
+        try:
+            data = read_saved_run(files[0])
+        except SAVED_RUN_ERRORS:
+            return jsonify(error='La ejecución guardada está dañada o incompleta. El archivo se conserva para revisión.'), 422
+        return jsonify(data)
 
     @app.post('/api/simulate')
     def run():

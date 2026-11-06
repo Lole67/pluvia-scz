@@ -1,6 +1,7 @@
 @echo off
 setlocal
-set "FLOOD_PYTHON=%~dp0..\.venv\Scripts\python.exe"
+set "FLOOD_PYTHON=%~dp0.venv\Scripts\python.exe"
+if not exist "%FLOOD_PYTHON%" set "FLOOD_PYTHON=%~dp0..\.venv\Scripts\python.exe"
 if not exist "%FLOOD_PYTHON%" (
   echo No se encontro el entorno Python. Consulta README.md para instalarlo.
   pause

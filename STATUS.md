@@ -61,3 +61,11 @@ Manual integral docs/SPRINT_1.md, README actualizado, guía GitHub y atribución
 
 ## Preparación de publicación — 2026-11-06
 Nombre del repositorio: Pluvia SCZ, https://github.com/Lole67/pluvia-scz . Se integra el README inicial remoto conservando ambos historiales. Commit local inicial 2c25951. La publicación y sincronización se comprueban después del push; esta entrada no certifica por sí sola que haya finalizado.
+
+## Cierre tecnico del Sprint 1 — 2026-11-06
+- Corregidos ambos iniciadores: entorno interno prioritario, respaldo en carpeta padre; cuatro ejecuciones de comprobacion aprobadas, incluso en rutas con espacios.
+- Historial tolerante a archivos ilegibles/incompletos, aviso en interfaz y HTTP 422 en consulta directa; sin borrado automatico.
+- Suite actual: 16 pruebas Python aprobadas, presentacion JS y sintaxis aprobadas. Motor sin modificaciones.
+- README y manual actualizados; acta docs/CIERRE_SPRINT_1.md distingue cierre tecnico de aceptacion visual pendiente.
+- Publicacion inicial confirmada por el usuario: 2e991ab en GitHub. Este avance se publica mediante un nuevo commit, sin alterar el historial anterior.
+- API .NET aplazada. No se afirma validacion fisica ni revision visual automatizada.

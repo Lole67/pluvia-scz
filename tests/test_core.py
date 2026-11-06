@@ -76,3 +76,39 @@ def test_real_grid_and_temporal_refinement():
     error=np.abs(r30['maximum_mm']-r15['maximum_mm']).sum()/r15['maximum_mm'].sum()
     assert error<.05
     assert abs(r30['ledger'][-1]['residual_m3'])<r30['tolerance_m3']
+
+
+@pytest.mark.parametrize('bad_content', ['{', '{}', '[]', '\ufffd'])
+def test_history_preserves_valid_runs_and_reports_bad_file(tmp_path, bad_content):
+    app = create_app(runs_dir=tmp_path)
+    client = app.test_client()
+    config = {'rain_mm': 50, 'duration_h': 2, 'saturation': .5, 'drainage_mmh': 5}
+    valid = client.post('/api/simulate', json=config).get_json()
+    bad_id = 'a' * 32
+    bad_file = tmp_path / ('9999_' + bad_id + '.json')
+    bad_file.write_text(bad_content, encoding='utf-8')
+    listing = client.get('/api/runs?include_warnings=1')
+    assert listing.status_code == 200
+    assert [r['run_id'] for r in listing.json['runs']] == [valid['run_id']]
+    assert listing.json['warnings'] == [bad_file.name]
+    assert len(client.get('/api/runs').json) == 1
+    assert client.get('/api/runs/' + valid['run_id']).json == valid
+    damaged = client.get('/api/runs/' + bad_id)
+    assert damaged.status_code == 422 and 'error' in damaged.json
+    assert bad_file.read_text(encoding='utf-8') == bad_content
+
+
+def test_history_rejects_incomplete_result_and_recovers_after_repair(tmp_path):
+    import json
+    client = create_app(runs_dir=tmp_path).test_client()
+    valid = client.post('/api/simulate', json={'rain_mm': 0, 'duration_h': 1, 'saturation': 1, 'drainage_mmh': 0}).json
+    file = next(tmp_path.glob('*.json'))
+    original = file.read_bytes()
+    damaged = dict(valid, maximum_mm=[[float('nan')]])
+    file.write_text(json.dumps(damaged), encoding='utf-8')
+    assert client.get('/api/runs?include_warnings=1').json == {'runs': [], 'warnings': [file.name]}
+    assert client.get('/api/runs/' + valid['run_id']).status_code == 422
+    file.write_bytes(original)
+    restarted = create_app(runs_dir=tmp_path).test_client()
+    assert restarted.get('/api/runs?include_warnings=1').json['warnings'] == []
+    assert restarted.get('/api/runs/' + valid['run_id']).json == valid

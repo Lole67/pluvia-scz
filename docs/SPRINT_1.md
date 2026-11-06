@@ -2,7 +2,7 @@
 
 **Pluvia SCZ · Santa Cruz de la Sierra**
 
-Versión documental: 1.0 · Corte: 5 de noviembre de 2026 · Entrega prevista: 6 de noviembre.
+Versión documental: 1.1 · Corte: 6 de noviembre de 2026 · Entrega prevista: 6 de noviembre.
 
 ## Contenido
 
@@ -72,7 +72,7 @@ El entorno existente está **en la carpeta padre** de `flood-app`. Desde `flood-
 ..\.venv\Scripts\python.exe run.py
 ```
 
-`INICIAR.cmd` y `start.ps1` actuales utilizan ese entorno de la carpeta padre. En un clon instalado con `.venv` dentro del repositorio, usar el comando de la instalación nueva; los iniciadores no detectan automáticamente esa disposición.
+`INICIAR.cmd` y `start.ps1` buscan primero `.venv` dentro del repositorio y luego el entorno de la carpeta padre. Por tanto sirven para ambas instalaciones. Si existen ambos, tiene prioridad el interno. Si no existe ninguno, muestran un mensaje para consultar la instalación.
 
 Después de cambios en plantillas, reiniciar el servidor y pulsar Ctrl+F5 en el navegador. El servidor escucha únicamente en `127.0.0.1:5050`, sin depurador; no está preparado como servicio público de producción.
 
@@ -205,7 +205,7 @@ El navegador solicita datos mediante HTTP a Flask. Flask carga el territorio, va
 | Archivo o carpeta | Responsabilidad |
 |---|---|
 | `run.py` | Inicia Flask en localhost:5050 |
-| `INICIAR.cmd`, `start.ps1` | Arranque con el entorno del equipo original |
+| `INICIAR.cmd`, `start.ps1` | Arranque con entorno interno o en la carpeta padre |
 | `flood/web.py` | Fábrica de aplicación, rutas HTTP, resumen y persistencia |
 | `flood/simulator.py` | `Scenario`, validación, simulación e índice |
 | `flood/territory.py` | Lectura y consistencia de matrices y geometrías |
@@ -233,8 +233,9 @@ No hay implementaciones explícitas de Factory Method, Abstract Factory, Builder
 | `GET /` | Página HTML |
 | `GET /api/territory` | Manifiesto, GeoJSON e indicador de Leaflet local |
 | `POST /api/simulate` | Crea ejecución; 201 con resultado JSON; 400 por configuración inválida |
-| `GET /api/runs` | Lista de las últimas 100 ejecuciones |
-| `GET /api/runs/<run_id>` | Resultado guardado; 404 si no existe o el identificador es inválido |
+| `GET /api/runs` | Lista de las últimas 100 ejecuciones legibles; conserva el contrato de lista |
+| `GET /api/runs?include_warnings=1` | Objeto con `runs` y `warnings` (nombres de archivos omitidos); usado por la interfaz |
+| `GET /api/runs/<run_id>` | Resultado guardado; 404 si no existe o el identificador es inválido; 422 con explicación si el archivo está dañado o incompleto |
 
 Entrada de ejemplo:
 
@@ -265,7 +266,7 @@ node --check flood/static/help.js
 
 En el equipo original sustituir `.\.venv` por `..\.venv`. Si hay restricciones de temporales, usar una carpeta exclusiva de pruebas con `--basetemp`; pytest puede limpiar esa carpeta.
 
-Última ejecución del 5/11: **11 casos Python aprobados**, además de pruebas JavaScript de presentación. Cubren dominio seco, solución plana conocida, límites de remoción, depresión, repetibilidad, casos inválidos, API y persistencia, malla y refinamiento temporal. También se comprobaron estructura HTML, referencias DOM, rutas y estilos calculados de opacidad/bordes/selección. Esas comprobaciones no sustituyen pruebas visuales en navegador.
+Última ejecución del 6/11: **16 casos Python aprobados**, además de pruebas JavaScript de presentación. Cubren dominio seco, solución plana conocida, límites de remoción, depresión, repetibilidad, casos inválidos, API y persistencia, malla y refinamiento temporal. Se agregaron cuatro casos de archivos dañados y uno de matrices inválidas con recuperación tras restauración: se verifica que las ejecuciones válidas sigan accesibles y que no se borren archivos. También se comprobaron estructura HTML, referencias DOM, rutas y estilos calculados de opacidad/bordes/selección. Esas comprobaciones no sustituyen pruebas visuales en navegador.
 
 Evidencia de `VALIDATION.json` para humedad 0,5 y drenaje 5 mm/h:
 
@@ -305,7 +306,7 @@ Sprint 2: mejorar territorio y reglas, selección de área, intervención local,
 | Historial vacío al clonar | Es esperado; ejecutar un escenario para crear resultados locales |
 | Resultado incompatible | Usar la versión territorial correspondiente o ejecutar un escenario nuevo |
 | Error al cargar territorio | Comprobar los cuatro archivos en `data/pilot-v1`; no reemplazar vacíos por ceros |
-| Error al leer historial tras edición manual | Respaldar y revisar el JSON alterado; no borrar indiscriminadamente resultados |
+| Aviso de archivos omitidos del historial | Los resultados válidos siguen disponibles. El aviso identifica los archivos que deben revisarse; se conservan sin modificar. Restaurar una copia válida y recargar |
 
 ## 12. Guion y cierre de entrega
 
@@ -329,3 +330,7 @@ Antes de declarar cerrado el sprint, verificar manualmente:
 - [ ] Instalación en otro equipo, si forma parte de la entrega exigida.
 
 La lista representa verificaciones pendientes, no resultados ya aprobados. No se recibió una rúbrica oficial que permita afirmar conformidad total con la evaluación del docente.
+
+
+### Actualización de cierre técnico, 6/11
+Los ajustes de arranque y tolerancia del historial están implementados. La evidencia y el alcance exacto del cierre constan en [CIERRE_SPRINT_1.md](CIERRE_SPRINT_1.md). La aceptación visual y una instalación de dependencias en otro equipo no se dan por realizadas. API .NET aplazada, sin cambios al alcance actual.
