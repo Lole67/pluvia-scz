@@ -1,0 +1,28 @@
+{% extends 'auth_base.html' %}
+{% block title %}Administrar usuarios{% endblock %}
+{% block width %}users-main{% endblock %}
+{% block content %}
+<div class="users-heading"><div><span class="eyebrow">ADMINISTRACIÓN</span><h2>Usuarios y permisos</h2><p>Los clientes consultan sus resultados. Los administradores gestionan cuentas y ven el historial completo.</p></div><a class="back-link" href="/">Volver al simulador</a></div>
+<section><h2>Crear cuenta</h2>
+<form method="post" class="new-user-form">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div><label for="name">Nombre</label><input id="name" name="name" required maxlength="80" autocomplete="off"></div>
+  <div><label for="username">Usuario</label><input id="username" name="username" required minlength="3" maxlength="40" pattern="[a-zA-Z0-9_.-]{3,40}" autocomplete="off"></div>
+  <div><label for="role">Rol</label><select id="role" name="role"><option value="client">Cliente</option><option value="admin">Administrador</option></select></div>
+  <div><label for="password">Contraseña inicial</label><input id="password" name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></div>
+  <button type="submit">Crear cuenta</button>
+</form><p class="muted">Contraseña de 12 a 128 caracteres. Comunícala al usuario por un canal privado; podrá cambiarla en Mi cuenta.</p></section>
+<section><h2>Cuentas registradas</h2><p class="muted">Cambiar el rol, el estado o la contraseña cierra las sesiones de esa cuenta. Siempre debe quedar un administrador activo.</p>
+<div class="user-list">
+{% for user in users %}
+<form method="post" action="/admin/users/{{ user.id }}" class="user-row">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <div><strong>{{ user.name }}</strong><p class="muted">{{ user.username }}{% if user.id == g.user.id %} · Tu cuenta{% endif %}</p><span class="state-pill">{{ 'Activa' if user.active else 'Desactivada' }}</span></div>
+  <div><label for="role-{{ user.id }}">Rol</label><select id="role-{{ user.id }}" name="role">{% for key, label in roles.items() %}<option value="{{ key }}" {% if user.role == key %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div><label for="active-{{ user.id }}">Acceso</label><select id="active-{{ user.id }}" name="active"><option value="1" {% if user.active %}selected{% endif %}>Activo</option><option value="0" {% if not user.active %}selected{% endif %}>Desactivado</option></select></div>
+  <div><label for="password-{{ user.id }}">Restablecer contraseña</label><input id="password-{{ user.id }}" name="password" type="password" minlength="12" maxlength="128" autocomplete="new-password" placeholder="Sin cambios"></div>
+  <button type="submit">Guardar</button>
+</form>
+{% endfor %}
+</div></section>
+{% endblock %}
