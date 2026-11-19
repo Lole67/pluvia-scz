@@ -21,4 +21,4 @@ Las contraseñas tienen entre 12 y 128 caracteres. Se almacenan mediante el gene
 **Salir** revoca la sesión actual. Cambiar la contraseña, restablecerla, modificar el rol o desactivar la cuenta revoca sus sesiones. El inicio de sesión limita los intentos por dirección IP: diez intentos en quince minutos; un acceso correcto reinicia ese contador. El servidor escucha por defecto únicamente en `127.0.0.1`.
 
 
-Consulta la instalación y la recuperación local de cuenta en [el manual técnico](PLUVIA_SCZ_SPRINT_1.md).
+Consulta la instalación y la recuperación local de cuenta en [el manual técnico](PLUVIA_SCZ_SPRINT_1.pdf).
