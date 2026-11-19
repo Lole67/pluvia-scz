@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cuenta · Pluvia SCZ</title><link rel="stylesheet" href="/static/style.css"><link rel="stylesheet" href="/static/auth.css"></head>
+<body class="account-page"><header><div><span class="eyebrow">SANTA CRUZ · ZONA PILOTO</span><h1>Pluvia SCZ</h1></div>
+<nav class="account-nav" id="account-nav" hidden><span id="identity"></span><a href="/">Simular</a><a href="/account">Mi cuenta</a><a id="admin-link" href="/admin/users" hidden>Usuarios</a><button id="logout" type="button">Salir</button></nav></header>
+<main class="account-main" id="account-main"><p id="message" role="status" aria-live="polite"></p>
+<section id="login-view" hidden><h2>Iniciar sesión</h2><p>Ingresa con tu cuenta de Pluvia SCZ.</p>
+<form id="login-form"><label for="username">Usuario</label><input id="username" name="username" autocomplete="username" required maxlength="40">
+<label for="password">Contraseña</label><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="128">
+<button type="submit">Iniciar sesión</button></form></section>
+<section id="password-view" hidden><h2>Mi cuenta</h2><form id="password-form">
+<label for="current-password">Contraseña actual</label><input id="current-password" name="currentPassword" type="password" autocomplete="current-password" required maxlength="128">
+<label for="new-password">Nueva contraseña</label><input id="new-password" name="password" type="password" autocomplete="new-password" required minlength="12" maxlength="128">
+<label for="confirmation">Repite la nueva contraseña</label><input id="confirmation" name="confirmation" type="password" autocomplete="new-password" required minlength="12" maxlength="128">
+<p>De 12 a 128 caracteres. Al cambiarla se cierran tus sesiones.</p><button type="submit">Cambiar contraseña</button></form></section>
+<section id="users-view" hidden><h2>Usuarios</h2><h3>Crear usuario</h3><form id="create-form" class="new-user-form">
+<div><label for="new-username">Usuario</label><input id="new-username" name="username" required minlength="3" maxlength="40" pattern="[a-z0-9_.\-]+" autocomplete="off"></div>
+<div><label for="new-name">Nombre</label><input id="new-name" name="name" required maxlength="80"></div>
+<div><label for="new-role">Rol</label><select id="new-role" name="role"><option value="client">Cliente</option><option value="admin">Administrador</option></select></div>
+<div><label for="initial-password">Contraseña inicial</label><input id="initial-password" name="password" type="password" required minlength="12" maxlength="128" autocomplete="new-password"></div>
+<button type="submit">Crear usuario</button></form><h3>Cuentas registradas</h3><div id="user-list"></div></section>
+</main><footer>Pluvia SCZ · Simulación experimental</footer><script src="/static/session.js"></script><script src="/static/account.js"></script></body></html>
