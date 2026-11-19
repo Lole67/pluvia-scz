@@ -22,3 +22,6 @@ data/private/
 data/raw/
 .DS_Store
 Thumbs.db
+bin/
+obj/
+.vs/
