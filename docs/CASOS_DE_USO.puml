@@ -1,0 +1,22 @@
+@startuml
+left to right direction
+actor Cliente
+actor Administrador
+Administrador --|> Cliente
+rectangle "Pluvia SCZ" {
+  usecase "CU-01
+Simular" as Simular
+  usecase "CU-02
+Consultar resultados" as Consultar
+}
+Cliente -- Simular
+Cliente -- Consultar
+note bottom of Simular
+  Precondición: sesión activa.
+  Incluye la configuración del escenario.
+end note
+note bottom of Consultar
+  Precondición: sesión activa.
+  El acceso depende del propietario y el rol.
+end note
+@enduml

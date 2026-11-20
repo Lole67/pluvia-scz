@@ -1,24 +1,32 @@
-from flood.web import create_app
-from getpass import getpass
+"""Start the .NET application with this interpreter as the numerical engine."""
+from pathlib import Path
+import os
+import shutil
+import subprocess
+import sys
+
+
+def main(arguments=None):
+    root = Path(__file__).resolve().parent
+    dotnet = shutil.which('dotnet')
+    if not dotnet:
+        raise SystemExit('Instala el SDK .NET 10 y vuelve a iniciar Pluvia SCZ.')
+    env = os.environ.copy()
+    env['PLUVIA_ROOT'] = str(root)
+    env['PLUVIA_PYTHON'] = sys.executable
+    env.setdefault('DOTNET_CLI_HOME', str(root / 'work/dotnet-home'))
+    env.setdefault('MSBuildEnableWorkloadResolver', 'false')
+    print('Pluvia SCZ: http://127.0.0.1:5050 | Swagger: http://127.0.0.1:5050/swagger', flush=True)
+    project = root / 'api/Pluvia.Api'
+    try:
+        if not (project / 'obj/project.assets.json').exists():
+            restored = subprocess.call([dotnet, 'restore', str(project), '--ignore-failed-sources'], cwd=root, env=env)
+            if restored:
+                return restored
+        return subprocess.call([dotnet, 'run', '--no-restore', '--project', str(project), '--', *(arguments or [])], cwd=root, env=env)
+    except KeyboardInterrupt:
+        return 0
+
 
 if __name__ == '__main__':
-    app = create_app()
-    accounts = app.extensions['accounts']
-    if not accounts.has_users():
-        print('Pluvia SCZ: crea la primera cuenta administradora.')
-        try:
-            while not accounts.has_users():
-                username = input('Usuario: ')
-                name = input('Nombre: ')
-                password = getpass('Contraseña (12 a 128 caracteres; no se muestra): ')
-                confirmation = getpass('Repite la contraseña: ')
-                if password != confirmation:
-                    print('Las contraseñas no coinciden.')
-                    continue
-                try:
-                    accounts.create_user(username, name, password, 'admin', first=True)
-                except ValueError as exc:
-                    print(exc)
-        except (EOFError, KeyboardInterrupt):
-            raise SystemExit('\nCreación cancelada. No se inició el servidor.')
-    app.run(host='127.0.0.1', port=5050, debug=False)
+    raise SystemExit(main(sys.argv[1:]))
