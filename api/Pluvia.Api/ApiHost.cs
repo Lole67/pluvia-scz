@@ -73,9 +73,8 @@ public static class ApiHost
         app.MapPost("/api/simulate", async (ScenarioInput input, SimulationService s, HttpContext c) => Results.Json(await s.Run(AccountsService.Current(c), input, null, c.RequestAborted), statusCode: 201)).WithTags("Simulaciones");
         app.MapGet("/api/runs", (string? include_warnings, string? status, SimulationService s, HttpContext c) => s.History(AccountsService.Current(c), include_warnings == "1", status)).WithTags("Historial");
         app.MapGet("/api/runs/{id}", (string id, SimulationService s, HttpContext c) => s.Get(AccountsService.Current(c), id)).WithTags("Historial");
-        foreach (var path in new[] { "/login", "/account", "/admin/users" })
-            app.MapGet(path, () => Results.File(Path.Combine(root, "web/account.html"), "text/html")).ExcludeFromDescription();
-        app.MapGet("/", () => Results.Redirect("/account")).ExcludeFromDescription();
+        foreach (var path in new[] { "/", "/login", "/account", "/admin/users" })
+            app.MapGet(path, () => Results.File(Path.Combine(root, "web", path == "/" ? "index.html" : "account.html"), "text/html")).ExcludeFromDescription();
         return app;
     }
 }
