@@ -278,3 +278,82 @@ def test_legacy_import_backup_and_idempotence(tmp_path):
     with sqlite3.connect(directory / 'pluvia.sqlite3') as db:
         assert not db.execute('SELECT password_hash FROM users').fetchone()[0].startswith('scrypt:')
         assert db.execute("SELECT value FROM metadata WHERE key='legacy_skipped'").fetchone()[0] == str(len(damaged))
+
+
+def test_scenario_crud_relationship_errors_and_persistence(tmp_path):
+    directory = tmp_path / 'crud'
+    with server(directory) as api:
+        token = api.login()
+        schema = api.call('GET', '/swagger/v1/swagger.json')
+        assert {'get', 'put', 'delete'} <= schema['paths']['/api/scenarios/{id}'].keys()
+        assert '409' in schema['paths']['/api/scenarios/{id}']['delete']['responses']
+        assert '400' in schema['paths']['/api/runs']['post']['responses']
+        for bad in ({}, {'name': ' '}, {'name': 'x', 'parameters': None},
+                    {'name': 'x' * 101, 'parameters': PARAMS},
+                    {'name': 'x', 'parameters': dict(PARAMS, rain_mm=301)}):
+            api.call('POST', '/api/scenarios', bad, token, 400)
+        scenario = api.call('POST', '/api/scenarios', dict(name='Persistente', parameters=PARAMS), token, 201)['id']
+        location = api.last_headers['Location']
+        assert location.endswith('/api/scenarios/' + scenario)
+        assert api.call('GET', '/api/scenarios/' + scenario, token=token)['name'] == 'Persistente'
+        assert api.call('GET', f'/api/scenarios/{scenario}/simulations', token=token) == []
+        updated = dict(PARAMS, duration_h=.1)
+        api.call('PUT', '/api/scenarios/' + scenario, dict(name='Editado', parameters=updated), token)
+        assert api.call('GET', '/api/scenarios/' + scenario, token=token)['parameters'] == updated
+        api.call('POST', '/api/runs', {'scenario_id': 'missing'}, token, 400)
+        api.call('POST', '/api/runs', {}, token, 400)
+        for method in ('GET', 'PUT', 'DELETE'):
+            api.call(method, '/api/scenarios/missing', dict(name='x', parameters=PARAMS) if method == 'PUT' else None, token, 404)
+        run = api.call('POST', '/api/runs', {'scenario_id': scenario}, token, 201)
+        assert api.last_headers['Location'].endswith('/api/runs/' + run['run_id'])
+        related = api.call('GET', f'/api/scenarios/{scenario}/simulations', token=token)
+        assert [r['run_id'] for r in related] == [run['run_id']]
+        api.call('DELETE', '/api/scenarios/' + scenario, token=token, expected=409)
+        disposable = api.call('POST', '/api/scenarios', dict(name='Borrable', parameters=PARAMS), token, 201)['id']
+        api.call('DELETE', '/api/scenarios/' + disposable, token=token, expected=204)
+        api.call('GET', '/api/scenarios/' + disposable, token=token, expected=404)
+    with server(directory) as api:
+        token = api.login()
+        assert api.call('GET', '/api/scenarios/' + scenario, token=token)['name'] == 'Editado'
+        assert api.call('GET', '/api/runs/' + run['run_id'], token=token)['maximum_mm'] == run['maximum_mm']
+        api.call('GET', '/api/scenarios/' + disposable, token=token, expected=404)
+    with sqlite3.connect(directory / 'pluvia.sqlite3') as db:
+        assert db.execute('SELECT COUNT(*) FROM __EFMigrationsHistory').fetchone()[0] == 1
+        assert db.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
+        assert db.execute('PRAGMA foreign_key_check').fetchall() == []
+
+
+def test_scenario_owner_permissions(api):
+    admin = api.login()
+    for name in ('alice', 'bob'):
+        api.call('POST', '/api/users', dict(username=name, name=name, password=PASSWORD, role='client'), admin, 201)
+    alice, bob = api.login('alice'), api.login('bob')
+    scenario = api.call('POST', '/api/scenarios', dict(name='Privado', parameters=PARAMS), alice, 201)['id']
+    for path in (f'/api/scenarios/{scenario}', f'/api/scenarios/{scenario}/simulations'):
+        api.call('GET', path, token=bob, expected=404)
+    api.call('DELETE', f'/api/scenarios/{scenario}', token=bob, expected=404)
+    api.call('POST', '/api/runs', {'scenario_id': scenario}, bob, 400)
+    assert api.call('GET', f'/api/scenarios/{scenario}', token=admin)['name'] == 'Privado'
+    api.call('DELETE', f'/api/scenarios/{scenario}', token=alice, expected=204)
+
+
+def test_adopt_pre_ef_database_without_changing_existing_rows(tmp_path):
+    directory = tmp_path / 'adoption'
+    with server(directory) as api:
+        token = api.login()
+        run = api.call('POST', '/api/simulate', dict(PARAMS, duration_h=.1), token, 201)
+    tables = ('users', 'sessions', 'attempts', 'scenarios', 'simulations', 'results', 'metadata')
+    with sqlite3.connect(directory / 'pluvia.sqlite3') as db:
+        before = {t: db.execute(f'SELECT * FROM {t} ORDER BY rowid').fetchall() for t in tables}
+        db.execute('DROP TABLE __EFMigrationsHistory')
+    # The previous release has the same tables, but no EF history table.
+    with server(directory):
+        pass
+    with sqlite3.connect(directory / 'pluvia.sqlite3') as db:
+        after = {t: db.execute(f'SELECT * FROM {t} ORDER BY rowid').fetchall() for t in tables}
+        assert before == after
+        assert db.execute('SELECT COUNT(*) FROM __EFMigrationsHistory').fetchone()[0] == 1
+    backups = list((directory / 'backups').glob('before-ef-*/pluvia.sqlite3'))
+    assert len(backups) == 1
+    with sqlite3.connect(backups[0]) as db:
+        assert db.execute('SELECT payload FROM results WHERE simulation_id=?', (run['run_id'],)).fetchone()[0] == before['results'][0][1]

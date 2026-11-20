@@ -131,7 +131,9 @@ FABDEM V1-2 aporta la elevación, agregada desde aproximadamente 30 m a celdas d
 
 ## 6. Base de datos e historial
 
-La base se crea automáticamente en `data/private/pluvia.sqlite3`, con claves foráneas y transacciones SQLite. Se utiliza modo WAL.
+La base se crea en `data/private/pluvia.sqlite3` mediante las migraciones de EF Core 10.0.11, con claves foráneas, transacciones y modo WAL. El contexto `Data/PluviaDbContext.cs` se inyecta por petición; `SimulationService` usa consultas y escrituras asíncronas para escenarios, ejecuciones y resultados. La autenticación y la importación conservan SQL parametrizado. Los controladores HTTP, DTO, entidades y acceso a datos están separados en carpetas.
+
+Las migraciones y el snapshot están en `api/Pluvia.Api/Data/Migrations/`. El arranque aplica las pendientes; `python run.py --migrate-only` las aplica sin abrir el servidor. Una base anterior sin historial EF se respalda en `data/private/backups/before-ef-*/` antes de adoptarla. Se conservan sus filas e identificadores.
 
 | Tabla | Contenido y relación |
 |---|---|
@@ -141,11 +143,12 @@ La base se crea automáticamente en `data/private/pluvia.sqlite3`, con claves fo
 | `scenarios` | Nombre, propietario, parámetros JSON y fechas de creación y edición. |
 | `simulations` | Identificador, escenario, propietario, fecha, copia de parámetros, estado y error. |
 | `results` | Una fila por ejecución completada; contiene matrices, balance, resúmenes y metadatos en JSON. |
+| `__EFMigrationsHistory` | Identificador y versión de las migraciones aplicadas. |
 | `metadata` | Registro de importación y archivos omitidos. |
 
 Un usuario puede tener varios escenarios y ejecuciones. Un escenario puede tener varias ejecuciones; cada ejecución tiene cero o un resultado. Los estados son `running`, `completed` y `failed`. Guardar el resultado y marcar la ejecución como completada forman una transacción. Al arrancar, las ejecuciones que quedaron en curso se marcan como fallidas por interrupción del servidor.
 
-Los resultados conservan los parámetros originales incluso cuando se edita el escenario asociado. La API no ofrece edición ni eliminación de resultados. La consulta del historial no vuelve a ejecutar el motor.
+Los resultados conservan los parámetros originales incluso cuando se edita el escenario asociado. La API no ofrece edición ni eliminación de resultados. La consulta del historial no vuelve a ejecutar el motor. La API permite eliminar escenarios sin ejecuciones (204). Si un escenario tiene ejecuciones, su eliminación devuelve 409 para conservar la relación y el historial.
 
 ### Importación y respaldo
 
@@ -170,7 +173,11 @@ Swagger está disponible en `http://127.0.0.1:5050/swagger`. El documento OpenAP
 | `PUT /api/users/{id}` | Cambiar rol, estado o contraseña. |
 | `GET /api/territory` | Consultar manifiesto territorial y geometrías. |
 | `GET /api/scenarios` | Listar los últimos cien escenarios accesibles. |
-| `POST /api/scenarios` | Guardar un escenario con nombre. |
+| `POST /api/scenarios` | Guardar un escenario; devuelve 201 y `Location`. |
+| `GET /api/scenarios/{id}` | Consultar un escenario por identificador. |
+| `DELETE /api/scenarios/{id}` | Eliminar un escenario sin ejecuciones. |
+| `GET /api/scenarios/{id}/simulations` | Consultar hasta cien ejecuciones relacionadas y accesibles. |
+| `POST /api/runs` | Ejecutar un escenario referenciado mediante `scenario_id`. |
 | `PUT /api/scenarios/{id}` | Editar un escenario accesible. |
 | `POST /api/scenarios/{id}/simulate` | Simular los parámetros guardados. |
 | `POST /api/simulate` | Crear y ejecutar un escenario con parámetros enviados. |
@@ -178,6 +185,8 @@ Swagger está disponible en `http://127.0.0.1:5050/swagger`. El documento OpenAP
 | `GET /api/runs/{id}` | Recuperar un resultado o el estado de una ejecución. |
 
 `GET /api/runs?status=completed` filtra por estado. También se admiten `running` y `failed`. Con `include_warnings=1`, la respuesta contiene `runs` y `warnings`; los avisos de importación solo se entregan al administrador.
+
+Los campos ausentes o inválidos devuelven 400. En `POST /api/runs`, una referencia `scenario_id` inexistente o inaccesible devuelve 400. Consultar un recurso inexistente o ajeno devuelve 404. La eliminación de un escenario con ejecuciones devuelve 409. Eliminar uno sin ejecuciones devuelve 204.
 
 ### Recorrido en Swagger
 

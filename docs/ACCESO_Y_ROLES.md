@@ -8,6 +8,7 @@ El sistema utiliza cuentas locales. El administrador inicial se crea desde la te
 | Iniciar sesión y cambiar su contraseña | Sí | Sí |
 | Simular y explorar el mapa | Sí | Sí |
 | Guardar, recuperar y editar escenarios propios | Sí | Sí |
+| Eliminar escenarios propios sin ejecuciones mediante la API | Sí | Sí |
 | Consultar resultados propios | Sí | Sí |
 | Acceder a escenarios y resultados de otros usuarios | No | Sí |
 | Consultar resultados importados sin propietario | No | Sí |

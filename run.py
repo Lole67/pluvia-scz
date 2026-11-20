@@ -1,9 +1,21 @@
 """Start the .NET application with this interpreter as the numerical engine."""
 from pathlib import Path
 import os
+import json
 import shutil
 import subprocess
 import sys
+import xml.etree.ElementTree as ET
+
+
+def needs_restore(project):
+    """Also restore when an update changes NuGet references in an existing checkout."""
+    try:
+        assets = json.loads((project / 'obj/project.assets.json').read_text(encoding='utf-8-sig'))
+        references = ET.parse(project / 'Pluvia.Api.csproj').findall('.//PackageReference')
+        return any(f"{p.attrib['Include']}/{p.attrib['Version']}" not in assets['libraries'] for p in references)
+    except (OSError, ValueError, KeyError):
+        return True
 
 
 def main(arguments=None):
@@ -19,7 +31,7 @@ def main(arguments=None):
     print('Pluvia SCZ: http://127.0.0.1:5050 | Swagger: http://127.0.0.1:5050/swagger', flush=True)
     project = root / 'api/Pluvia.Api'
     try:
-        if not (project / 'obj/project.assets.json').exists():
+        if needs_restore(project):
             restored = subprocess.call([dotnet, 'restore', str(project), '--ignore-failed-sources'], cwd=root, env=env)
             if restored:
                 return restored

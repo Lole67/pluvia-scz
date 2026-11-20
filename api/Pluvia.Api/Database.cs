@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.Sqlite;
 using System.Text.Json.Nodes;
 
@@ -12,18 +13,19 @@ public sealed class Database
         PathName = path;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         using var db = Open();
-        Execute(db, """
-            PRAGMA journal_mode=WAL;
-            CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,username TEXT UNIQUE NOT NULL,name TEXT NOT NULL,password_hash TEXT NOT NULL,role TEXT NOT NULL CHECK(role IN ('admin','client')),active INTEGER NOT NULL DEFAULT 1);
-            CREATE TABLE IF NOT EXISTS sessions(token_hash TEXT PRIMARY KEY,user_id INTEGER NOT NULL REFERENCES users(id),expires INTEGER NOT NULL);
-            CREATE TABLE IF NOT EXISTS attempts(ip TEXT NOT NULL,at INTEGER NOT NULL);
-            CREATE INDEX IF NOT EXISTS ix_attempts ON attempts(ip,at);
-            CREATE TABLE IF NOT EXISTS scenarios(id TEXT PRIMARY KEY,owner_id INTEGER REFERENCES users(id),name TEXT NOT NULL,parameters TEXT NOT NULL,created_at TEXT NOT NULL,updated_at TEXT NOT NULL);
-            CREATE TABLE IF NOT EXISTS simulations(id TEXT PRIMARY KEY,scenario_id TEXT NOT NULL REFERENCES scenarios(id),owner_id INTEGER REFERENCES users(id),created_at TEXT NOT NULL,status TEXT NOT NULL CHECK(status IN ('running','completed','failed')),parameters TEXT NOT NULL,error TEXT);
-            CREATE TABLE IF NOT EXISTS results(simulation_id TEXT PRIMARY KEY REFERENCES simulations(id),payload TEXT NOT NULL);
-            CREATE INDEX IF NOT EXISTS ix_runs_owner ON simulations(owner_id,created_at);
-            CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL);
-            """);
+        // Take a consistent SQLite backup before adopting an existing installation.
+        var hasUsers = Query(db, "SELECT name FROM sqlite_master WHERE type='table' AND name='users'").Count > 0;
+        var hasMigrations = Query(db, "SELECT name FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory'").Count > 0;
+        if (hasUsers && !hasMigrations)
+        {
+            var backupFolder = Path.Combine(Path.GetDirectoryName(path)!, "backups", "before-ef-" + DateTime.UtcNow.ToString("yyyyMMddTHHmmssfff"));
+            Directory.CreateDirectory(backupFolder);
+            using var copy = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(backupFolder, "pluvia.sqlite3") }.ToString());
+            copy.Open(); db.BackupDatabase(copy);
+        }
+        Execute(db, "PRAGMA journal_mode=WAL;");
+        using var context = new Pluvia.Api.Data.PluviaDbContext(new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<Pluvia.Api.Data.PluviaDbContext>().UseSqlite(db).Options);
+        context.Database.Migrate();
     }
     public SqliteConnection Open()
     {

@@ -1,36 +1,72 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using static Pluvia.Api.Database;
+using Microsoft.EntityFrameworkCore;
+using Pluvia.Api.Data;
+using Pluvia.Api.Entities;
 
 namespace Pluvia.Api;
 
-public sealed class SimulationService(Database database, PythonEngine engine, string root)
+public sealed class SimulationService(PluviaDbContext database, PythonEngine engine, string root)
 {
     public JsonObject Manifest { get; } = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "data/pilot-v1/manifest.json")))!.AsObject();
     public JsonObject Geo { get; } = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "data/pilot-v1/cells.geojson")))!.AsObject();
     private static void Access(Account user, object? owner) { if (user.Role != "admin" && (owner is null || Convert.ToInt64(owner) != user.Id)) throw new ApiError(404, "Registro no encontrado."); }
     public object Territory() => new { manifest = Manifest, geojson = Geo, leaflet_local = new[] { "leaflet.js", "leaflet.css" }.All(f => File.Exists(Path.Combine(root, "flood/static/vendor/leaflet", f))) };
-    public object Scenarios(Account user)
-    {
-        using var db = database.Open(); return Query(db, "SELECT * FROM scenarios WHERE owner_id=$p0 OR $p1='admin' ORDER BY updated_at DESC LIMIT 100", user.Id, user.Role)
-            .Select(r => new { id = r["id"], name = r["name"], owner_id = r["owner_id"], parameters = JsonNode.Parse((string)r["parameters"]!), created_at = r["created_at"], updated_at = r["updated_at"] });
-    }
-    public string SaveScenario(Account user, ScenarioRequest request, string? id = null)
+    private IQueryable<ScenarioEntity> VisibleScenarios(Account user) => database.Scenarios.Where(s => s.OwnerId == user.Id || user.Role == "admin");
+    private static ScenarioResponse ScenarioDto(ScenarioEntity s) => new(s.Id, s.Name, s.OwnerId, JsonSerializer.Deserialize<ScenarioInput>(s.Parameters, JsonDefaults.Options)!, s.CreatedAt, s.UpdatedAt);
+    private async Task<ScenarioEntity> FindScenario(Account user, string id, CancellationToken cancellation = default) =>
+        await VisibleScenarios(user).SingleOrDefaultAsync(s => s.Id == id, cancellation) ?? throw new ApiError(404, "Escenario no encontrado.");
+    public async Task<List<ScenarioResponse>> Scenarios(Account user, CancellationToken cancellation = default) =>
+        (await VisibleScenarios(user).AsNoTracking().OrderByDescending(s => s.UpdatedAt).Take(100).ToListAsync(cancellation)).Select(ScenarioDto).ToList();
+    public async Task<ScenarioResponse> GetScenario(Account user, string id, CancellationToken cancellation = default) => ScenarioDto(await FindScenario(user, id, cancellation));
+    public async Task<string> SaveScenario(Account user, ScenarioRequest request, string? id = null, CancellationToken cancellation = default)
     {
         if (request.Parameters is null || string.IsNullOrWhiteSpace(request.Name) || request.Name.Length > 100) throw new ApiError(400, "Indica un nombre de hasta 100 caracteres y los parámetros.");
-        request.Parameters.Validate(); using var db = database.Open(); using var tx = db.BeginTransaction(); var now = DateTime.UtcNow.ToString("O");
-        if (id is null) { id = Guid.NewGuid().ToString("N"); Execute(db, "INSERT INTO scenarios VALUES($p0,$p1,$p2,$p3,$p4,$p4)", id, user.Id, request.Name.Trim(), JsonDefaults.Encode(request.Parameters), now); }
-        else { var row = Query(db, "SELECT * FROM scenarios WHERE id=$p0", id).FirstOrDefault() ?? throw new ApiError(404, "Escenario no encontrado."); Access(user, row["owner_id"]); Execute(db, "UPDATE scenarios SET name=$p0,parameters=$p1,updated_at=$p2 WHERE id=$p3", request.Name.Trim(), JsonDefaults.Encode(request.Parameters), now, id); }
-        tx.Commit(); return id;
+        request.Parameters.Validate();
+        var now = DateTime.UtcNow.ToString("O");
+        var scenario = id is null ? new ScenarioEntity { Id = Guid.NewGuid().ToString("N"), OwnerId = user.Id, CreatedAt = now } : await FindScenario(user, id, cancellation);
+        scenario.Name = request.Name.Trim(); scenario.Parameters = JsonDefaults.Encode(request.Parameters); scenario.UpdatedAt = now;
+        if (id is null) database.Scenarios.Add(scenario);
+        await database.SaveChangesAsync(cancellation);
+        return scenario.Id;
+    }
+    public async Task DeleteScenario(Account user, string id, CancellationToken cancellation = default)
+    {
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellation);
+        var scenario = await FindScenario(user, id, cancellation);
+        if (await database.Simulations.AnyAsync(s => s.ScenarioId == id, cancellation))
+            throw new ApiError(409, "Este escenario tiene simulaciones. Se conserva para mantener el historial.");
+        database.Scenarios.Remove(scenario);
+        await database.SaveChangesAsync(cancellation);
+        await transaction.CommitAsync(cancellation);
+    }
+    private static SimulationResponse RunDto(SimulationEntity s, Account user) => new(s.Id, s.ScenarioId, s.CreatedAt,
+        JsonSerializer.Deserialize<ScenarioInput>(s.Parameters, JsonDefaults.Options)!, s.Status, s.Error,
+        user.Role == "admin" ? s.Owner?.Username ?? "Sin propietario" : null,
+        s.Result is null ? 0 : JsonNode.Parse(s.Result.Payload)!["elapsed_s"]!.GetValue<double>());
+    private IQueryable<SimulationEntity> VisibleRuns(Account user) => database.Simulations.AsNoTracking().Include(s => s.Owner).Include(s => s.Result).Where(s => s.OwnerId == user.Id || user.Role == "admin");
+    public async Task<List<SimulationResponse>> Related(Account user, string id, CancellationToken cancellation = default)
+    {
+        await FindScenario(user, id, cancellation);
+        return (await VisibleRuns(user).Where(s => s.ScenarioId == id).OrderByDescending(s => s.CreatedAt).Take(100).ToListAsync(cancellation)).Select(s => RunDto(s, user)).ToList();
     }
     public async Task<JsonObject> Run(Account user, ScenarioInput? input, string? scenarioId, CancellationToken cancellation)
     {
-        if (scenarioId is not null) { using var read = database.Open(); var row = Query(read, "SELECT * FROM scenarios WHERE id=$p0", scenarioId).FirstOrDefault() ?? throw new ApiError(404, "Escenario no encontrado."); Access(user, row["owner_id"]); input = JsonSerializer.Deserialize<ScenarioInput>((string)row["parameters"]!, JsonDefaults.Options)!; }
-        if (input is null) throw new ApiError(400, "Faltan los parámetros."); input.Validate();
-        scenarioId ??= SaveScenario(user, new("Simulación " + DateTime.Now.ToString("g"), input));
+        // Keep the scenario snapshot and its new execution consistent with concurrent edits/deletes.
         var id = Guid.NewGuid().ToString("N"); var created = DateTime.UtcNow.ToString("O");
-        using (var db = database.Open()) Execute(db, "INSERT INTO simulations VALUES($p0,$p1,$p2,$p3,'running',$p4,NULL)", id, scenarioId, user.Id, created, JsonDefaults.Encode(input));
+        var execution = new SimulationEntity();
+        await using (var transaction = await database.Database.BeginTransactionAsync(cancellation))
+        {
+            if (scenarioId is not null) input = (await GetScenario(user, scenarioId, cancellation)).Parameters;
+            if (input is null) throw new ApiError(400, "Faltan los parámetros.");
+            input.Validate();
+            scenarioId ??= await SaveScenario(user, new("Simulación " + DateTime.Now.ToString("g"), input), cancellation: cancellation);
+            execution = new SimulationEntity { Id = id, ScenarioId = scenarioId, OwnerId = user.Id, CreatedAt = created, Parameters = JsonDefaults.Encode(input), Status = "running" };
+            database.Simulations.Add(execution);
+            await database.SaveChangesAsync(cancellation);
+            await transaction.CommitAsync(cancellation);
+        }
         try
         {
             var watch = Stopwatch.StartNew(); var data = await engine.Call(new { scenario = input }, cancellation); watch.Stop();
@@ -43,29 +79,33 @@ public sealed class SimulationService(Database database, PythonEngine engine, st
             data["rain_pattern"] = "constant"; data["boundary"] = "closed"; data["mobility_m2_s"] = 20; data["window"] = "duración de lluvia; sin recesión"; data["seed"] = null; data["area"] = "zona piloto fija, reporte central de 16 km²";
             data["summary"] = JsonSerializer.SerializeToNode(new { max_mm = peak.Max(), mean_max_mm = peak.Average(), mean_index = indices.Average(), category_area_km2 = new { baja = indices.Count(n => n < 25) * .0625, media = indices.Count(n => n >= 25 && n < 50) * .0625, alta = indices.Count(n => n >= 50 && n < 75) * .0625, muy_alta = indices.Count(n => n >= 75) * .0625 } });
             data["sources"] = Manifest["sources"]!.DeepClone(); data["warnings"] = Manifest["warnings"]!.DeepClone(); ValidateResult(data);
-            using var db = database.Open(); using var tx = db.BeginTransaction(); Execute(db, "INSERT INTO results VALUES($p0,$p1)", id, data.ToJsonString()); Execute(db, "UPDATE simulations SET status='completed' WHERE id=$p0", id); tx.Commit(); return data;
+            execution.Status = "completed";
+            database.Results.Add(new ResultEntity { SimulationId = id, Payload = data.ToJsonString() });
+            await database.SaveChangesAsync(cancellation);
+            return data;
         }
         catch (Exception)
-        { using var db = database.Open(); Execute(db, "UPDATE simulations SET status='failed',error=$p0 WHERE id=$p1", "El cálculo no se completó. Puedes volver a intentarlo.", id); throw; }
+        {
+            // A cancelled request must still leave an auditable failed execution.
+            database.ChangeTracker.Clear();
+            await database.Simulations.Where(s => s.Id == id).ExecuteUpdateAsync(set => set.SetProperty(s => s.Status, "failed").SetProperty(s => s.Error, "El cálculo no se completó. Puedes volver a intentarlo."));
+            throw;
+        }
     }
-    public object History(Account user, bool warnings, string? status = null)
+    public async Task<object> History(Account user, bool warnings, string? status = null)
     {
         if (status is not null && status is not ("running" or "completed" or "failed")) throw new ApiError(400, "Estado inválido.");
-        using var db = database.Open();
-        var rows = Query(db, "SELECT s.*,u.username,r.payload FROM simulations s LEFT JOIN users u ON s.owner_id=u.id LEFT JOIN results r ON s.id=r.simulation_id WHERE (s.owner_id=$p0 OR $p1='admin') AND ($p2 IS NULL OR s.status=$p2) ORDER BY s.created_at DESC LIMIT 100", user.Id, user.Role, status);
-        var runs = rows.Select(r => new { run_id = r["id"], scenario_id = r["scenario_id"], created_at = r["created_at"], scenario = JsonNode.Parse((string)r["parameters"]!), status = r["status"], error = r["error"], owner_username = user.Role == "admin" ? r["username"] ?? "Sin propietario" : null, elapsed_s = r["payload"] is string payload ? JsonNode.Parse(payload)!["elapsed_s"]!.GetValue<double>() : 0 }).ToArray();
-        if (warnings)
-        {
-            var skipped = user.Role == "admin" ? Query(db, "SELECT value FROM metadata WHERE key='legacy_skipped_files'").FirstOrDefault() : null;
-            return new { runs, warnings = skipped is null ? new JsonArray() : JsonNode.Parse((string)skipped["value"]!) };
-        }
-        return runs;
+        var rows = await VisibleRuns(user).Where(s => status == null || s.Status == status).OrderByDescending(s => s.CreatedAt).Take(100).ToListAsync();
+        var runs = rows.Select(s => RunDto(s, user)).ToList();
+        if (!warnings) return runs;
+        var skipped = user.Role == "admin" ? await database.Metadata.AsNoTracking().SingleOrDefaultAsync(m => m.Key == "legacy_skipped_files") : null;
+        return new HistoryResponse(runs, skipped is null ? new JsonArray() : JsonNode.Parse(skipped.Value)!);
     }
-    public object Get(Account user, string id)
+    public async Task<object> Get(Account user, string id)
     {
-        using var db = database.Open(); var row = Query(db, "SELECT s.*,r.payload FROM simulations s LEFT JOIN results r ON r.simulation_id=s.id WHERE s.id=$p0", id).FirstOrDefault() ?? throw new ApiError(404, "Ejecución no encontrada."); Access(user, row["owner_id"]);
-        if (row["payload"] is string result) return JsonNode.Parse(result)!;
-        return new { run_id = id, status = row["status"], error = row["error"], scenario = JsonNode.Parse((string)row["parameters"]!) };
+        var execution = await VisibleRuns(user).SingleOrDefaultAsync(s => s.Id == id) ?? throw new ApiError(404, "Ejecución no encontrada.");
+        if (execution.Result is not null) return JsonNode.Parse(execution.Result.Payload)!;
+        return new { run_id = id, status = execution.Status, error = execution.Error, scenario = JsonNode.Parse(execution.Parameters) };
     }
     public static void ValidateResult(JsonObject data)
     {
