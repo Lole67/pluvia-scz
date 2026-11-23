@@ -14,7 +14,7 @@ def project_files():
         for path in (ROOT / directory).rglob('*'):
             if path.is_file() and not EXCLUDED.intersection(path.relative_to(ROOT).parts):
                 names.add(path.relative_to(ROOT).as_posix())
-    for name in ('PLUVIA_SCZ_SPRINT_1.md', 'PLUVIA_SCZ_SPRINT_1.pdf', 'CASOS_DE_USO.md',
+    for name in ('SPRINT_2.md', 'PLUVIA_SCZ_SPRINT_1.md', 'PLUVIA_SCZ_SPRINT_1.pdf', 'CASOS_DE_USO.md',
                  'CASOS_DE_USO.pdf', 'CASOS_DE_USO.puml', 'ACCESO_Y_ROLES.md'):
         names.add('docs/' + name)
     for name in sorted(names):
