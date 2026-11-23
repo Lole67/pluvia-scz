@@ -11,8 +11,16 @@ public sealed class SimulationService(PluviaDbContext database, PythonEngine eng
 {
     public JsonObject Manifest { get; } = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "data/pilot-v1/manifest.json")))!.AsObject();
     public JsonObject Geo { get; } = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "data/pilot-v1/cells.geojson")))!.AsObject();
+    private static JsonObject? ReadSoilSurvey(string root)
+    {
+        var path = Path.Combine(root, "data/pilot-v1/soilgrids.json");
+        return File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path))!.AsObject() : null;
+    }
+    private readonly JsonObject? soilSurvey = ReadSoilSurvey(root);
     private static void Access(Account user, object? owner) { if (user.Role != "admin" && (owner is null || Convert.ToInt64(owner) != user.Id)) throw new ApiError(404, "Registro no encontrado."); }
-    public object Territory() => new { manifest = Manifest, geojson = Geo, leaflet_local = new[] { "leaflet.js", "leaflet.css" }.All(f => File.Exists(Path.Combine(root, "flood/static/vendor/leaflet", f))) };
+    public TerritoryResponse Territory() => new(Manifest, Geo,
+        new[] { "leaflet.js", "leaflet.css" }.All(f => File.Exists(Path.Combine(root, "flood/static/vendor/leaflet", f))),
+        JsonNode.DeepEquals(soilSurvey?["territory_version"], Manifest["version"]) ? soilSurvey : null);
     private IQueryable<ScenarioEntity> VisibleScenarios(Account user) => database.Scenarios.Where(s => s.OwnerId == user.Id || user.Role == "admin");
     private static ScenarioResponse ScenarioDto(ScenarioEntity s) => new(s.Id, s.Name, s.OwnerId, JsonSerializer.Deserialize<ScenarioInput>(s.Parameters, JsonDefaults.Options)!, s.CreatedAt, s.UpdatedAt);
     private async Task<ScenarioEntity> FindScenario(Account user, string id, CancellationToken cancellation = default) =>
@@ -61,7 +69,6 @@ public sealed class SimulationService(PluviaDbContext database, PythonEngine eng
             if (scenarioId is not null) input = (await GetScenario(user, scenarioId, cancellation)).Parameters;
             if (input is null) throw new ApiError(400, "Faltan los parámetros.");
             input.Validate();
-            scenarioId ??= await SaveScenario(user, new("Simulación " + DateTime.Now.ToString("g"), input), cancellation: cancellation);
             execution = new SimulationEntity { Id = id, ScenarioId = scenarioId, OwnerId = user.Id, CreatedAt = created, Parameters = JsonDefaults.Encode(input), Status = "running" };
             database.Simulations.Add(execution);
             await database.SaveChangesAsync(cancellation);
@@ -70,14 +77,10 @@ public sealed class SimulationService(PluviaDbContext database, PythonEngine eng
         try
         {
             var watch = Stopwatch.StartNew(); var data = await engine.Call(new { scenario = input }, cancellation); watch.Stop();
-            var peak = new List<double>(); var indices = new List<double>();
-            foreach (var feature in Geo["features"]!.AsArray())
-            { var p = feature!["properties"]!; if (p["report"]!.GetValue<bool>()) { int r = p["row"]!.GetValue<int>(), c = p["col"]!.GetValue<int>(); peak.Add(data["maximum_mm"]![r]![c]!.GetValue<double>()); indices.Add(data["index"]![r]![c]!.GetValue<double>()); } }
             data["run_id"] = id; data["scenario_id"] = scenarioId; data["owner_id"] = user.Id; data["owner_username"] = user.Username;
             data["created_at"] = created; data["scenario"] = JsonSerializer.SerializeToNode(input, JsonDefaults.Options); data["elapsed_s"] = watch.Elapsed.TotalSeconds;
-            data["territory_version"] = Manifest["version"]!.DeepClone(); data["engine_version"] = "balance-d4-0.1.0"; data["index_version"] = "max-mm-linear-100-v1";
-            data["rain_pattern"] = "constant"; data["boundary"] = "closed"; data["mobility_m2_s"] = 20; data["window"] = "duración de lluvia; sin recesión"; data["seed"] = null; data["area"] = "zona piloto fija, reporte central de 16 km²";
-            data["summary"] = JsonSerializer.SerializeToNode(new { max_mm = peak.Max(), mean_max_mm = peak.Average(), mean_index = indices.Average(), category_area_km2 = new { baja = indices.Count(n => n < 25) * .0625, media = indices.Count(n => n >= 25 && n < 50) * .0625, alta = indices.Count(n => n >= 50 && n < 75) * .0625, muy_alta = indices.Count(n => n >= 75) * .0625 } });
+            data["territory_version"] = Manifest["version"]!.DeepClone();  data["index_version"] = "max-mm-linear-100-v1";
+            data["rain_pattern"] = input!.Rain_profile is null ? "constant" : "series"; data["boundary"] = "closed"; data["mobility_m2_s"] = 20; data["window"] = "duración de lluvia; sin recesión"; data["seed"] = null; data["area"] = input.Report_polygon is not null ? "polígono de reporte" : "zona piloto fija, reporte central de 16 km²";
             data["sources"] = Manifest["sources"]!.DeepClone(); data["warnings"] = Manifest["warnings"]!.DeepClone(); ValidateResult(data);
             execution.Status = "completed";
             database.Results.Add(new ResultEntity { SimulationId = id, Payload = data.ToJsonString() });
@@ -114,13 +117,15 @@ public sealed class SimulationService(PluviaDbContext database, PythonEngine eng
         var config = data["scenario"]!.Deserialize<ScenarioInput>(JsonDefaults.Options)!; config.Validate();
         _ = DateTimeOffset.Parse(data["created_at"]!.GetValue<string>());
         foreach (var key in new[] { "territory_version", "engine_version", "index_version" }) if (string.IsNullOrWhiteSpace(data[key]!.GetValue<string>())) throw new ApiError(400, "Versión ausente.");
-        foreach (var key in new[] { "maximum_mm", "final_mm", "index" })
+        var ml = data["motor"]?.GetValue<string>() == "ml";
+        foreach (var key in ml ? new[] { "maximum_mm", "index" } : new[] { "maximum_mm", "final_mm", "index" })
         { var matrix = data[key]!.AsArray(); if (matrix.Count != 24 || matrix.Any(r => r!.AsArray().Count != 24 || r.AsArray().Any(v => !double.IsFinite(v!.GetValue<double>())))) throw new ApiError(400, "Matriz de resultado inválida."); }
         foreach (var key in new[] { "max_mm", "mean_index" }) if (!double.IsFinite(data["summary"]![key]!.GetValue<double>())) throw new ApiError(400, "Resumen inválido.");
-        if (!double.IsFinite(data["elapsed_s"]!.GetValue<double>()) || data["elapsed_s"]!.GetValue<double>() < 0 || data["ledger"]!.AsArray().Count == 0) throw new ApiError(400, "Resultado incompleto.");
-        if (!double.IsFinite(data["tolerance_m3"]!.GetValue<double>())) throw new ApiError(400, "Tolerancia inválida.");
+        if (!double.IsFinite(data["elapsed_s"]!.GetValue<double>()) || data["elapsed_s"]!.GetValue<double>() < 0 || (!ml && data["ledger"]!.AsArray().Count == 0)) throw new ApiError(400, "Resultado incompleto.");
+        if (!ml && !double.IsFinite(data["tolerance_m3"]!.GetValue<double>())) throw new ApiError(400, "Tolerancia inválida.");
         foreach (var key in new[] { "baja", "media", "alta", "muy_alta" })
             if (!double.IsFinite(data["summary"]!["category_area_km2"]![key]!.GetValue<double>())) throw new ApiError(400, "Categoría inválida.");
+        if (ml) return;
         foreach (var key in new[] { "rain_m3", "infiltration_m3", "drainage_m3", "stored_m3", "residual_m3" })
             if (!double.IsFinite(data["ledger"]!.AsArray().Last()![key]!.GetValue<double>())) throw new ApiError(400, "Balance inválido.");
     }

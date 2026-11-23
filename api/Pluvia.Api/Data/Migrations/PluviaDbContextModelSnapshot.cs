@@ -131,7 +131,6 @@ namespace Pluvia.Api.Data.Migrations
                         .HasColumnName("parameters");
 
                     b.Property<string>("ScenarioId")
-                        .IsRequired()
                         .HasColumnType("TEXT")
                         .HasColumnName("scenario_id");
 
@@ -239,8 +238,7 @@ namespace Pluvia.Api.Data.Migrations
                     b.HasOne("Pluvia.Api.Entities.ScenarioEntity", "Scenario")
                         .WithMany("Simulations")
                         .HasForeignKey("ScenarioId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Owner");
 

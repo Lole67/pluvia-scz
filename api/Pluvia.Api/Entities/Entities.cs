@@ -23,8 +23,8 @@ public sealed class ScenarioEntity
 public sealed class SimulationEntity
 {
     public string Id { get; set; } = "";
-    public string ScenarioId { get; set; } = "";
-    public ScenarioEntity Scenario { get; set; } = null!;
+    public string? ScenarioId { get; set; }
+    public ScenarioEntity? Scenario { get; set; }
     public long? OwnerId { get; set; }
     public UserEntity? Owner { get; set; }
     public string CreatedAt { get; set; } = "";

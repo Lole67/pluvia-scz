@@ -53,6 +53,9 @@ public static class ApiHost
             context.Response.Headers["X-Content-Type-Options"] = "nosniff";
             context.Response.Headers["X-Frame-Options"] = "DENY";
             if (context.Request.Path.StartsWithSegments("/api")) context.Response.Headers.CacheControl = "no-store";
+            else if (context.Request.Path.StartsWithSegments("/static") ||
+                     context.Request.Path.Value is "/" or "/login" or "/account" or "/admin/users")
+                context.Response.Headers.CacheControl = "no-cache";
             try
             {
                 var authorization = context.Request.Headers.Authorization.ToString();
