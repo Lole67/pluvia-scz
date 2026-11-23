@@ -1,5 +1,5 @@
 {
-  "version": "pilot-fabdem-v1-090104e063e4",
+  "version": "pilot-v2-090104e063e4-5122209ed25c",
   "cell_m": 250,
   "shape": [
     24,
@@ -42,6 +42,32 @@
       "attribution": "Neal, Hawker, Uhe, Paulo, Sosa, Savage y Sampson, Universidad de Bristol",
       "license_url": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
     },
+    "land_cover": {
+      "classification": "pública/modelada",
+      "product": "ESA WorldCover 2021 v200",
+      "resolution": "10 m nominales",
+      "year": 2021,
+      "tile": "ESA_WorldCover_10m_2021_v200_S18W066_Map.tif",
+      "sha256": "5122209ed25cd8584fb7bea164631519d92b660daac5968e42b7ec9a24dd060c",
+      "aggregation": "Porcentaje estimado por clase mediante muestreo regular UTM a 5 m (vecino más cercano). El denominador incluye las muestras sin datos.",
+      "classes": {
+        "0": "Sin datos",
+        "10": "Arbolado",
+        "20": "Matorral",
+        "30": "Pastizal",
+        "40": "Cultivos",
+        "50": "Zona construida",
+        "60": "Suelo desnudo o vegetación escasa",
+        "70": "Nieve o hielo",
+        "80": "Agua permanente",
+        "90": "Humedal herbáceo",
+        "95": "Manglar",
+        "100": "Musgos y líquenes"
+      },
+      "license": "CC BY 4.0",
+      "attribution": "ESA WorldCover project 2021 / Contains modified Copernicus Sentinel data (2021) processed by ESA WorldCover consortium",
+      "url": "https://esa-worldcover.org/en/data-access"
+    },
     "slope": {
       "classification": "derivada",
       "method": "gradiente del DEM agregado"
@@ -49,12 +75,12 @@
     "infiltration": {
       "classification": "sintética provisional",
       "value_mmh": 5,
-      "coverage": "uniforme; cobertura/SoilGrids pendientes"
+      "coverage": "uniforme en el dominio; la textura SoilGrids se consulta por separado"
     }
   },
   "warnings": [
     "Zona piloto parcial, no toda Santa Cruz.",
-    "Cobertura y SoilGrids no incorporados; infiltración uniforme sintética de 5 mm/h.",
+    "La cobertura describe el suelo en 2021. La infiltración del simulador es provisional y uniforme (5 mm/h).",
     "Borde exterior cerrado; buffer de 1 km no validado como cuenca ni aislamiento suficiente.",
     "No modela desbordamiento del Piraí ni red municipal de drenaje.",
     "Resultados exploratorios sin validación observacional."

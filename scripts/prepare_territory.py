@@ -7,6 +7,7 @@ import rasterio
 from rasterio.transform import from_origin
 from rasterio.warp import reproject, Resampling
 from pyproj import Transformer
+from worldcover import TILE, read_cover
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "data/raw/S18W064_FABDEM_V1-2.tif"
@@ -24,6 +25,7 @@ def main():
     north = round(cy / 250) * 250 + 3000
     transform = from_origin(west, north, 250, 250)
     z = np.full((24, 24), np.nan, dtype=np.float64)
+    cover, cover_source = read_cover(SOURCE.parent / TILE, transform, z.shape, "EPSG:32720")
     with rasterio.open(SOURCE) as src:
         if src.crs is None:
             raise ValueError("DEM sin CRS.")
@@ -48,9 +50,11 @@ def main():
                              "properties": {"cell_id": f"UTM20S-{int(x)}-{int(y)}", "row": row,
                                             "col": col, "report": bool(mask[row, col]),
                                             "elevation_m": float(z[row, col]),
+                                            "land_cover_pct": {str(code): float(values[row, col])
+                                                               for code, values in cover.items() if values[row, col] > 0},
                                             "infiltration_mmh": 5.0, "infiltration_origin": "sintética provisional"}})
     sha = hashlib.sha256(SOURCE.read_bytes()).hexdigest()
-    manifest = {"version": "pilot-fabdem-v1-" + sha[:12], "cell_m": 250, "shape": [24, 24],
+    manifest = {"version": f"pilot-v2-{sha[:12]}-{cover_source['sha256'][:12]}", "cell_m": 250, "shape": [24, 24],
                 "crs": "EPSG:32720", "domain_area_km2": 36, "report_area_km2": 16,
                 "origin_west_north": [west, north], "boundary": "closed",
                 "source_sha256": sha, "source_metadata": source_info,
@@ -58,12 +62,15 @@ def main():
                 "sources": {"elevation": {"classification": "pública/modelada", "product": "FABDEM V1-2",
                     "resolution": "1 segundo de arco (~30 m)", "aggregation": "promedio a 250 m",
                     "url": "https://data.bris.ac.uk/datasets/s5hqmjcdj8yo2ibzi9b4ew3sn/",
-                    "doi": "10.5523/bris.s5hqmjcdj8yo2ibzi9b4ew3sn", "license": "CC BY-NC-SA 4.0"},
+                    "doi": "10.5523/bris.s5hqmjcdj8yo2ibzi9b4ew3sn", "license": "CC BY-NC-SA 4.0",
+                    "attribution": "Neal, Hawker, Uhe, Paulo, Sosa, Savage y Sampson, Universidad de Bristol",
+                    "license_url": "https://creativecommons.org/licenses/by-nc-sa/4.0/"},
+                    "land_cover": cover_source,
                     "slope": {"classification": "derivada", "method": "gradiente del DEM agregado"},
                     "infiltration": {"classification": "sintética provisional", "value_mmh": 5,
-                                     "coverage": "uniforme; cobertura/SoilGrids pendientes"}},
+                                     "coverage": "uniforme en el dominio; la textura SoilGrids se consulta por separado"}},
                 "warnings": ["Zona piloto parcial, no toda Santa Cruz.",
-                    "Cobertura y SoilGrids no incorporados; infiltración uniforme sintética de 5 mm/h.",
+                    "La cobertura describe el suelo en 2021. La infiltración del simulador es provisional y uniforme (5 mm/h).",
                     "Borde exterior cerrado; buffer de 1 km no validado como cuenca ni aislamiento suficiente.",
                     "No modela desbordamiento del Piraí ni red municipal de drenaje.",
                     "Resultados exploratorios sin validación observacional."]}
