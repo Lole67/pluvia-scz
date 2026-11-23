@@ -15,13 +15,15 @@ class Scenario:
     saturation: float
     drainage_mmh: float
 
+    rain_profile: list | None = None
+
     @classmethod
     def from_dict(cls, payload):
         if not isinstance(payload, dict):
             raise ValueError("Envíe una configuración JSON con los cuatro campos.")
         bounds = {"rain_mm": (0, 300), "duration_h": (0.1, 24),
                   "saturation": (0, 1), "drainage_mmh": (0, 100)}
-        unknown = set(payload) - set(bounds)
+        unknown = set(payload) - set(bounds) - {"rain_profile"}
         if unknown:
             raise ValueError("Campos no admitidos: " + ", ".join(sorted(unknown)))
         values = {}
@@ -32,7 +34,13 @@ class Scenario:
             if not math.isfinite(value) or not low <= value <= high:
                 raise ValueError(f"{key}: debe estar entre {low} y {high}.")
             values[key] = float(value)
-        return cls(**values)
+        weights = payload.get("rain_profile")
+        if weights is not None:
+            if (not isinstance(weights, list) or not 1 <= len(weights) <= 48
+                    or any(type(w) not in (int, float) or not math.isfinite(w) or not 0 <= w <= 100 for w in weights)
+                    or abs(sum(weights) - 100) > 1e-6):
+                raise ValueError("El perfil requiere 1 a 48 porcentajes que sumen 100.")
+        return cls(**values, rain_profile=weights)
 
 
 def index_from_max(max_mm):
@@ -41,7 +49,7 @@ def index_from_max(max_mm):
 
 
 def simulate(elevation_m, infiltration_mmh, scenario, dt_s=30.0,
-             initial_mm=None, boundary="closed", mobility_m2_s=20.0):
+             initial_mm=None, boundary="closed", mobility_m2_s=20.0, drainage_field=None):
     """D4 por carga z+h. Conductancia sintética, tasas en m²/s.
 
     Bordes cerrados para piloto: no hay aportes externos al dominio fijo.
@@ -71,15 +79,23 @@ def simulate(elevation_m, infiltration_mmh, scenario, dt_s=30.0,
     steps = math.ceil(duration / dt_s)
     step = duration / steps  # Serie constante; integración exacta del total.
     rain_step = scenario.rain_mm / steps / 1000
+    increments = np.full(steps, rain_step)
+    if scenario.rain_profile:
+        cumulative = np.r_[0, np.cumsum(scenario.rain_profile)] / sum(scenario.rain_profile)
+        depth = np.interp(np.linspace(0, 1, steps + 1), np.linspace(0, 1, len(cumulative)), cumulative)
+        increments = np.diff(depth) * scenario.rain_mm / 1000
     rain_total = inf_total = drain_total = 0.0
     ledger = []
+    drainage = scenario.drainage_mmh if drainage_field is None else np.asarray(drainage_field)
+    if drainage_field is not None and (drainage.shape != z.shape or not np.isfinite(drainage).all() or (drainage < 0).any()):
+        raise ValueError("Campo de drenaje inválido.")
     effective_inf = inf * (1 - scenario.saturation)
-    for n in range(steps):
+    for n, rain_step in enumerate(increments):
         h += rain_step
         rain_total += rain_step * z.size * area
         removed_inf = np.minimum(h, effective_inf * step / 3600 / 1000)
         h -= removed_inf
-        removed_drain = np.minimum(h, scenario.drainage_mmh * step / 3600 / 1000)
+        removed_drain = np.minimum(h, drainage * step / 3600 / 1000)
         h -= removed_drain
         inf_total += float(removed_inf.sum() * area)
         drain_total += float(removed_drain.sum() * area)
