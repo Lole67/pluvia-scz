@@ -23,7 +23,8 @@ from flood.simulator import Scenario, simulate
 from flood.territory import load_territory
 
 ROOT = Path(__file__).resolve().parents[1]
-DLL = ROOT / 'api/Pluvia.Api/bin/Debug/net10.0/Pluvia.Api.dll'
+BUILD_CONFIG = os.environ.get('PLUVIA_TEST_CONFIGURATION', 'Debug')
+DLL = ROOT / f'api/Pluvia.Api/bin/{BUILD_CONFIG}/net10.0/Pluvia.Api.dll'
 PASSWORD = 'Test-password-only-2026'
 PARAMS = dict(rain_mm=50, duration_h=2, saturation=.5, drainage_mmh=5)
 
@@ -83,7 +84,7 @@ def server(directory, root=ROOT, migrate=False, python=None):
                PLUVIA_URL=f'http://127.0.0.1:{port}', PLUVIA_SKIP_IMPORT='0' if migrate else '1',
                PLUVIA_PYTHON=str(python or sys.executable), DOTNET_CLI_HOME=str(directory / 'dotnet'))
     memory = os.environ.get('PLUVIA_TEST_TRANSPORT') == 'memory'
-    executable = ROOT / 'api/Pluvia.Api.Tests/bin/Debug/net10.0/Pluvia.Api.Tests.dll' if memory else DLL
+    executable = ROOT / f'api/Pluvia.Api.Tests/bin/{BUILD_CONFIG}/net10.0/Pluvia.Api.Tests.dll' if memory else DLL
     with (directory / 'server.log').open('w', encoding='utf-8') as log:
         process = subprocess.Popen(['dotnet', str(executable)], env=env, stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE if memory else log, stderr=log, text=True, encoding='utf-8',
@@ -213,6 +214,51 @@ def test_login_throttling(api):
     api.call('POST', '/api/auth/login', dict(username='testadmin', password=PASSWORD), expected=429)
 
 
+def test_pilot_land_cover(api):
+    territory = api.call('GET', '/api/territory', token=api.login())
+    source = territory['manifest']['sources']['land_cover']
+    assert source['year'] == 2021 and source['classes']['0'] == 'Sin datos'
+    cells = territory['geojson']['features']
+    assert len(cells) == 576
+    for feature in cells:
+        percentages = feature['properties']['land_cover_pct']
+        assert percentages.keys() <= source['classes'].keys()
+        assert all(0 < value <= 100 for value in percentages.values())
+        assert sum(percentages.values()) == pytest.approx(100)
+    central = next(f['properties'] for f in cells if f['properties']['cell_id'] == 'UTM20S-480750-8034500')
+    assert central['land_cover_pct']['50'] == pytest.approx(75.84)
+
+    survey = territory['soilgrids']
+    assert survey['territory_version'] == territory['manifest']['version']
+    by_id = {cell['cell_id']: cell for cell in survey['cells']}
+    assert set(by_id) == {f['properties']['cell_id'] for f in cells}
+    valid = [c for c in by_id.values() if c['status'] == 'valida']
+    assert len(valid) == 14 and all(c['soil_ksat_mmh'] > 0 for c in valid)
+    report = [by_id[f['properties']['cell_id']] for f in cells if f['properties']['report']]
+    assert len(report) == 256 and all(c['sand_pct'] is None and c['clay_pct'] is None for c in report)
+
+
+def test_fractional_report_and_engine_selection(api):
+    owner = api.login()
+    triangle = [[8, 8], [9, 8], [8, 9]]
+    params = dict(PARAMS, report_polygon=triangle, rain_profile=[70,30], prefer_ml=True)
+    def run(**overrides):
+        return api.call('POST', '/api/simulate', dict(params, **overrides), owner, 201)
+    ml = run()
+    assert ml['motor'] == 'ml' and 'ledger' not in ml
+    assert ml['report_weights'][8][8] == .5
+    assert sum(ml['summary']['category_area_km2'].values()) == pytest.approx(.03125)
+    assert api.call('GET', '/api/runs/'+ml['run_id'], token=owner)['maximum_mm'] == ml['maximum_mm']
+    local = run(drain_polygon=triangle, local_mmh=40)
+    assert local['motor'] == 'simulator' and 'local' in local['motor_reason']
+    assert abs(local['ledger'][-1]['residual_m3']) <= local['tolerance_m3']
+    assert local['ledger'][-1]['rain_m3'] == pytest.approx(50/1000 * 36e6)
+    assert run(rain_mm=250)['motor'] == 'simulator'
+    assert run(rain_mm=0)['summary']['max_mm'] == 0
+    api.call('POST','/api/simulate',dict(params,rain_profile=[20,20]),owner,400)
+    api.call('POST','/api/simulate',dict(params,report_polygon=[[8,8],[10,10],[10,8],[8,10]]),owner,400)
+
+
 def test_static_ui_and_security_headers(api):
     import re
     html = api.call('GET', '/', as_text=True)
@@ -318,7 +364,7 @@ def test_scenario_crud_relationship_errors_and_persistence(tmp_path):
         assert api.call('GET', '/api/runs/' + run['run_id'], token=token)['maximum_mm'] == run['maximum_mm']
         api.call('GET', '/api/scenarios/' + disposable, token=token, expected=404)
     with sqlite3.connect(directory / 'pluvia.sqlite3') as db:
-        assert db.execute('SELECT COUNT(*) FROM __EFMigrationsHistory').fetchone()[0] == 1
+        assert db.execute('SELECT COUNT(*) FROM __EFMigrationsHistory').fetchone()[0] == 2
         assert db.execute('PRAGMA integrity_check').fetchone()[0] == 'ok'
         assert db.execute('PRAGMA foreign_key_check').fetchall() == []
 
@@ -352,8 +398,20 @@ def test_adopt_pre_ef_database_without_changing_existing_rows(tmp_path):
     with sqlite3.connect(directory / 'pluvia.sqlite3') as db:
         after = {t: db.execute(f'SELECT * FROM {t} ORDER BY rowid').fetchall() for t in tables}
         assert before == after
-        assert db.execute('SELECT COUNT(*) FROM __EFMigrationsHistory').fetchone()[0] == 1
+        assert db.execute('SELECT COUNT(*) FROM __EFMigrationsHistory').fetchone()[0] == 2
     backups = list((directory / 'backups').glob('before-ef-*/pluvia.sqlite3'))
     assert len(backups) == 1
     with sqlite3.connect(backups[0]) as db:
         assert db.execute('SELECT payload FROM results WHERE simulation_id=?', (run['run_id'],)).fetchone()[0] == before['results'][0][1]
+
+
+def test_direct_runs_keep_snapshots_without_creating_saved_scenarios(tmp_path):
+    with server(tmp_path / 'direct') as api:
+        token = api.login()
+        runs = [api.call('POST', '/api/simulate', PARAMS, token, 201) for _ in range(2)]
+        assert runs[0]['run_id'] != runs[1]['run_id']
+        assert api.call('GET', '/api/scenarios', token=token) == []
+        for run in runs:
+            result = api.call('GET', '/api/runs/' + run['run_id'], token=token)
+            assert result.get('scenario_id') is None
+            assert result['scenario']['rain_mm'] == PARAMS['rain_mm']

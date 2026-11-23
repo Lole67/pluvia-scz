@@ -79,7 +79,7 @@ public sealed class Database
             result["owner_id"] = owner;
             var parameters = result["scenario"]!.ToJsonString(); var created = result["created_at"]!.GetValue<string>();
             Execute(db, "INSERT INTO scenarios VALUES($p0,$p1,$p2,$p3,$p4,$p4)", scenarioId, owner, "Importado", parameters, created);
-            Execute(db, "INSERT INTO simulations VALUES($p0,$p1,$p2,$p3,'completed',$p4,NULL)", id, scenarioId, owner, created, parameters);
+            Execute(db, "INSERT INTO simulations(id,scenario_id,owner_id,created_at,status,parameters,error) VALUES($p0,$p1,$p2,$p3,'completed',$p4,NULL)", id, scenarioId, owner, created, parameters);
             Execute(db, "INSERT INTO results VALUES($p0,$p1)", id, result.ToJsonString());
         }
         Execute(db, "INSERT INTO metadata VALUES('legacy_import',$p0)", DateTime.UtcNow.ToString("O"));
