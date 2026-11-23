@@ -10,6 +10,8 @@ La API y la interfaz se sirven desde ASP.NET Core. Python ejecuta el cálculo nu
 
 ## Instalación desde cero en Windows
 
+Para reproducir el entrenamiento, consultar sus métricas y probar ambos motores, ver [Sprint 2 en el piloto](docs/SPRINT_2.md).
+
 Esta guía utiliza **Windows de 64 bits y PowerShell**. Ejecuta los comandos uno por uno. Si alguno falla, resuelve ese error antes de continuar.
 
 El ZIP incluye el código y el terreno preparado. **No incluye Python, el SDK de .NET ni el entorno `.venv`**. La primera instalación necesita internet para descargar herramientas y dependencias. No necesitas ChatGPT, Codex, Visual Studio ni un servidor de base de datos para ejecutar el proyecto.
