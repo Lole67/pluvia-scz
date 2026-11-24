@@ -1,4 +1,4 @@
-from export_documentation import ROOT, export
+from export_documentation import DOCS, export
 
-if __name__ == '__main__':
-    export(ROOT / 'docs/CASOS_DE_USO.md', ROOT / 'docs/CASOS_DE_USO.pdf', diagram=True)
+if __name__ == "__main__":
+    export(DOCS / "fuentes/CASOS_DE_USO.html")

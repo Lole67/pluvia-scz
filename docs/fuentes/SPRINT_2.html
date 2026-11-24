@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><title>Informe del Sprint 2 · Pluvia SCZ</title>
+<style>@page{size:A4;margin:15mm 17mm}*{box-sizing:border-box}body{max-width:185mm;margin:auto;color:#193541;font:11pt/1.42 'Segoe UI',Arial,sans-serif}h1{font-size:26pt;color:#144653;line-height:1.12;margin:7px 0 15px}h2,h3{font-size:14pt;color:#00646a;margin:16px 0 5px}small{font-size:9pt;font-weight:700;letter-spacing:.07em;color:#00646a}p{margin:5px 0 10px}table{width:100%;border-collapse:collapse;font-size:10pt;margin:8px 0 10px}td,th{vertical-align:top;text-align:left;padding:6px 7px;border-bottom:1px solid #c7d8d8}th{background:#e8f3f1}tr{break-inside:avoid}section+section{break-before:page}section{break-inside:auto}svg{display:block;width:100%}a{color:#00646a}code,pre{font:9pt Consolas,monospace}pre{background:#f0f5f6;padding:8px;white-space:pre-wrap}ol{padding-left:20px}li{margin:6px 0}@page poster{size:440mm 1010mm;margin:13mm}.poster{page:poster}.poster h1{margin:4px 0}@media print{body{max-width:none}}</style>
+<body>
+<section><small>PLUVIA SCZ · SPRINT 2 · ENTREGA DEL 20/11/2026</small><h1>Drenaje local y aprendizaje experimental</h1>
+<p>El analista puede dibujar un reporte y, por separado, un área de intervención. El reporte delimita los indicadores. La intervención cambia la tasa de drenaje según la fracción cubierta de cada celda. El simulador sigue calculando en las 576 celdas del piloto.</p>
+<h2>De dónde aprende el ML</h2><p>El simulador proporciona la etiqueta: la acumulación máxima en mm de cada celda para cada lluvia. Con semilla 42 se generaron 70 escenarios distintos. Se reservaron 47 para entrenamiento, 12 para validación y 11 para prueba. Los 16 bloques espaciales de 6 × 6 celdas se separaron en 10, 3 y 3. Cada partición usa exclusivamente sus escenarios y bloques.</p>
+<p>La media de entrenamiento constituye la línea base. Se compararon una regresión lineal y un árbol que incorpora variables del relieve. El árbol se activó al reducir el MAE y mejorar el acierto de categoría frente al lineal en validación. La prueba quedó reservada para la evaluación final.</p>
+<h2>Error frente al simulador</h2><table>
+<tr><th>Partición</th><th>Modelo</th><th>MAE (mm)</th><th>RMSE (mm)</th><th>R²</th></tr>
+<tr><td>Validación</td><td>Media</td><td>76,50</td><td>98,96</td><td>−0,109</td></tr>
+<tr><td>Validación</td><td>Lineal</td><td>50,54</td><td>79,24</td><td>0,289</td></tr>
+<tr><td>Validación</td><td>Árbol</td><td>29,38</td><td>86,97</td><td>0,143</td></tr>
+<tr><td>Prueba</td><td>Media</td><td>122,37</td><td>236,07</td><td>−0,008</td></tr>
+<tr><td>Prueba</td><td>Lineal</td><td>90,97</td><td>196,34</td><td>0,302</td></tr>
+<tr><td>Prueba</td><td>Árbol</td><td>54,68</td><td>147,67</td><td>0,605</td></tr>
+</table>
+<p>MAE es el error absoluto medio en mm. RMSE da más peso a errores grandes. En validación el árbol tiene menor MAE que el lineal y mayor RMSE. En prueba mejora ambos errores. La inferencia sobre la matriz de variables preparada tomó alrededor de 0,71 ms en la medición original.</p>
+<h2>Regla de selección</h2><p>Se usa ML si se solicita, el modelo está activo, coinciden las versiones de territorio, simulador e índice, y los parámetros y el patrón de lluvia pertenecen al dominio entrenado. Una intervención local exige el simulador. El resultado identifica el motor y el motivo de selección. El balance físico está disponible para el simulador.</p></section><section><small>PLUVIA SCZ · SPRINT 2 · VALIDACIÓN</small><h1>Qué se puede demostrar</h1>
+<h2>Coincidencias y errores por categoría</h2><p>En la prueba reservada, cada observación corresponde a una celda de un escenario. Filas: simulador. Columnas: ML. Los cortes son 25, 50 y 75 mm.</p><table>
+<tr><th>Simulador / ML</th><th>Baja</th><th>Media</th><th>Alta</th><th>Muy alta</th></tr>
+<tr><td>Baja</td><td>886</td><td>7</td><td>6</td><td>21</td></tr>
+<tr><td>Media</td><td>16</td><td>2</td><td>2</td><td>1</td></tr>
+<tr><td>Alta</td><td>11</td><td>3</td><td>0</td><td>5</td></tr>
+<tr><td>Muy alta</td><td>71</td><td>10</td><td>11</td><td>136</td></tr>
+</table>
+<p>El árbol acertó la categoría en 1.024 de 1.188 casos (86,2 %). A partir de 50 mm detectó 152 de 247 casos, omitió 95 y marcó 30 adicionales. En validación hubo 139 detecciones, 58 omisiones y 39 marcas adicionales. La referencia es el simulador. Para estimar precisión ante inundaciones reales hacen falta observaciones locales.</p>
+<h2>Demostración en la aplicación</h2><ol>
+<li>Desde la raíz, ejecutar <code>.&#92;INICIAR.cmd</code> y abrir <a href="http://127.0.0.1:5050">http://127.0.0.1:5050</a>. En «Tu escenario», usar lluvia uniforme de 50 mm, duración de 2 h, humedad 0,5 y drenaje general de 5 mm/h. Activar ML y simular.</li>
+<li>Dibujar una intervención de al menos tres vértices y asignarle 10 mm/h. Simular y leer el motivo de selección del simulador y el balance. Dibujar un reporte y comprobar que las superficies por categoría suman el área reportada.</li>
+<li>En «Escenarios guardados», guardar con nombre, seleccionar y pulsar «Cargar configuración». En «Consultar resultados», recuperar una ejecución anterior con sus parámetros y su mapa. Simular registra una ejecución y conserva su configuración sin crear otro escenario nombrado.</li></ol>
+<h2>Evidencia reproducible</h2><p>Con el entorno Python activo, ejecutar <code>python scripts/train_surrogate.py --evaluar</code>. El catálogo y el modelo están en <code>data/pilot-v1/ml/</code>. Para repetir el entrenamiento, instalar <code>scikit-learn==1.9.1</code> y ejecutar el mismo script sin argumentos.</p>
+<p>SoilGrids aporta textura válida en 14 de 576 celdas y en ninguna del reporte central. El modelo usa infiltración base provisional de 5 mm/h. El plan prevé configuraciones inmutables en Sprint 3: hoy se puede editar un escenario nombrado y cada ejecución conserva su propia copia de parámetros. La duplicación y la comparación A/B siguen previstas para Sprint 3.</p></section>
+</body></html>
