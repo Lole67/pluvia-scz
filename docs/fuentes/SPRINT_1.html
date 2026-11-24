@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es"><meta charset="utf-8"><title>Informe del Sprint 1 · Pluvia SCZ</title>
+<style>@page{size:A4;margin:15mm 17mm}*{box-sizing:border-box}body{max-width:185mm;margin:auto;color:#193541;font:11pt/1.42 'Segoe UI',Arial,sans-serif}h1{font-size:26pt;color:#144653;line-height:1.12;margin:7px 0 15px}h2,h3{font-size:14pt;color:#00646a;margin:16px 0 5px}small{font-size:9pt;font-weight:700;letter-spacing:.07em;color:#00646a}p{margin:5px 0 10px}table{width:100%;border-collapse:collapse;font-size:10pt;margin:8px 0 10px}td,th{vertical-align:top;text-align:left;padding:6px 7px;border-bottom:1px solid #c7d8d8}th{background:#e8f3f1}tr{break-inside:avoid}section+section{break-before:page}section{break-inside:auto}svg{display:block;width:100%}a{color:#00646a}code,pre{font:9pt Consolas,monospace}pre{background:#f0f5f6;padding:8px;white-space:pre-wrap}ol{padding-left:20px}li{margin:6px 0}@page poster{size:440mm 1010mm;margin:13mm}.poster{page:poster}.poster h1{margin:4px 0}@media print{body{max-width:none}}</style>
+<body>
+<section><small>PLUVIA SCZ · SPRINT 1 · ENTREGA DEL 06/11/2026</small><h1>Del terreno al primer mapa</h1>
+<p>El primer mínimo viable permite configurar una lluvia sintética, calcular la respuesta del terreno y consultar un resultado espacial. La prueba de aceptación recorre ese flujo desde la interfaz.</p>
+<h2>Territorio y unidades</h2><p>La elevación procede de FABDEM V1-2, agregada a una cuadrícula UTM 20S (EPSG:32720). Cada celda mide 250 × 250 m y cubre 0,0625 km². El motor intercambia agua entre las 576 celdas del dominio de 36 km². El reporte inicial utiliza las 256 celdas centrales (16 km²).</p>
+<h2>De la lluvia al resultado</h2><p>La lluvia total se expresa en mm, la duración en horas y el drenaje en mm/h. En cada paso el motor añade lluvia, descuenta infiltración y drenaje hasta el agua disponible y redistribuye el agua entre cuatro vecinos según el desnivel de la superficie. El borde exterior es cerrado. El máximo por celda corresponde a la ventana de lluvia.</p>
+<p>El mapa muestra elevación, acumulación máxima en mm e índice relativo. El índice se obtiene limitando a 100 la acumulación máxima en mm. Por ejemplo, 80 puntos representan 80 mm en esta escala experimental.</p>
+<h2>Criterios de aceptación y comprobaciones</h2><table>
+<tr><th>Criterio</th><th>Cómo se comprueba</th></tr>
+<tr><td>Entradas con metadatos</td><td>Consultar el manifiesto del piloto, el sistema de coordenadas, las dimensiones de la malla y la procedencia de la elevación.</td></tr>
+<tr><td>Coherencia del agua</td><td>Las pruebas del núcleo verifican un dominio seco, lluvia sobre terreno plano, extracciones limitadas al agua disponible y estabilidad al reducir el paso temporal.</td></tr>
+<tr><td>Primera ejecución integrada</td><td>Iniciar la aplicación, elegir 50 mm, 2 h, humedad intermedia y drenaje de 5 mm/h. Ejecutar el simulador, abrir la capa de agua máxima y seleccionar una celda.</td></tr>
+</table>
+<h2>Alcance que se completó después</h2><p>La incorporación al repositorio de la cobertura WorldCover, la revisión de textura SoilGrids, los patrones de lluvia y la selección del reporte consta en la integración del Sprint 2. La infiltración de base sigue siendo provisional. El informe del Sprint 2 detalla la cobertura efectiva.</p>
+<p>Arranque desde la raíz del proyecto en PowerShell: <code>.&#92;INICIAR.cmd</code>. Abrir <a href="http://127.0.0.1:5050">http://127.0.0.1:5050</a>. Las fuentes y licencias se conservan en <code>DATA_SOURCES.md</code>.</p></section>
+</body></html>

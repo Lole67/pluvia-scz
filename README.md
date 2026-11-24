@@ -10,7 +10,7 @@ La API y la interfaz se sirven desde ASP.NET Core. Python ejecuta el cálculo nu
 
 ## Instalación desde cero en Windows
 
-Para reproducir el entrenamiento, consultar sus métricas y probar ambos motores, ver [Sprint 2 en el piloto](docs/SPRINT_2.md).
+Para reproducir el entrenamiento, consultar sus métricas y probar ambos motores, ver [Sprint 2 en el piloto](docs/SPRINT_2.pdf).
 
 Esta guía utiliza **Windows de 64 bits y PowerShell**. Ejecuta los comandos uno por uno. Si alguno falla, resuelve ese error antes de continuar.
 
@@ -278,10 +278,14 @@ El contrato completo está en `/swagger/v1/swagger.json`. Las pruebas desde Swag
 
 ## Documentación
 
-- [Manual funcional y técnico](docs/PLUVIA_SCZ_SPRINT_1.md).
-- [Manual en PDF](docs/PLUVIA_SCZ_SPRINT_1.pdf).
-- [Casos de uso](docs/CASOS_DE_USO.md).
+- [Diagrama de casos de uso y acciones de la interfaz](docs/CASOS_DE_USO.pdf).
+- [BPMN del proceso integral de análisis pluvial](docs/BPMN.pdf).
+- [Informe del Sprint 0 · planificación del equipo](docs/SPRINT_0.pdf).
+- [Informe del Sprint 1 · territorio y primera simulación](docs/SPRINT_1.pdf).
+- [Informe del Sprint 2 · drenaje local, ML y evaluación](docs/SPRINT_2.pdf).
 - [Fuentes y condiciones de los datos](DATA_SOURCES.md).
+
+Los originales editables están en [docs/fuentes](docs/fuentes). Para regenerar los cinco PDF con Edge, Chrome o Chromium, ejecuta `python scripts/export_documentation.py` desde la raíz.
 
 ## Pruebas automatizadas (opcionales para usar la aplicación)
 
@@ -311,7 +315,7 @@ Genera `work/distribution/pluvia-scz.zip` con código, migraciones, datos territ
 
 ## Interpretación
 
-La malla tiene 576 celdas de 250 m; el dominio abarca 36 km² y el reporte central 16 km². El índice equivale al agua máxima simulada en milímetros, limitada a 100. **80 puntos no significan 80 % de probabilidad de inundación.** La infiltración y el drenaje son supuestos uniformes; el borde es cerrado. Las calles son una referencia visual y no participan en el cálculo.
+La malla tiene 576 celdas de 250 m; el dominio abarca 36 km² y el reporte central 16 km². El índice equivale al agua máxima simulada en milímetros, limitada a 100. **80 puntos no significan 80 % de probabilidad de inundación.** La infiltración de base es provisional y el drenaje admite una tasa local en un polígono; el borde es cerrado. Las calles son una referencia visual y no participan en el cálculo.
 
 Los derivados FABDEM conservan las condiciones CC BY-NC-SA 4.0. Consulta `DATA_SOURCES.md`.
 
